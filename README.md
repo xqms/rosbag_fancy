@@ -2,7 +2,7 @@
 rosbag_fancy
 ============
 
-[![asciicast](https://asciinema.org/a/xC92NkC7m4PwLpeW50orTkFlT.svg)](https://asciinema.org/a/xC92NkC7m4PwLpeW50orTkFlT)
+[![asciicast](https://asciinema.org/a/RVgZfBJt7cGgGgAlo6Xz0qbNw.svg)](https://asciinema.org/a/RVgZfBJt7cGgGgAlo6Xz0qbNw)
 
 `rosbag_fancy` is a fancy terminal UI frontend for the venerable [rosbag]
 tool. It is highly experimental and the CLI should be considered unstable.
