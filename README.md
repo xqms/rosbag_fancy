@@ -10,3 +10,5 @@ advantages over plain `rosbag record`:
 
  * Live display of statistics per topic, such as number of messages, bandwidth,
    dropped messages, etc
+
+[rosbag]: http://wiki.ros.org/rosbag
