@@ -208,7 +208,7 @@ void UI::draw()
 		if(activity)
 		{
 			totalActivity = true;
-			writer.printColumn(" ██", 0x00FF00);
+			writer.printColumn(" ▮ ", 0x00FF00);
 		}
 		else
 			writer.printColumn("");
@@ -239,7 +239,7 @@ void UI::draw()
 
 	writer.startRow();
 	if(totalActivity)
-		writer.printColumn(" ██", 0x00FF00);
+		writer.printColumn(" ▮ ", 0x00FF00);
 	else
 		writer.printColumn("");
 	writer.printColumn("All");
