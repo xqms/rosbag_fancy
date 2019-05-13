@@ -32,6 +32,12 @@ target_link_libraries(rosbag_fancy
 	${CURSES_LIBRARIES}
 )
 
+# Version 1.5 (increment this comment to trigger a CMake update)
+catkin_add_env_hooks(50-rosbag_fancy
+	SHELLS bash
+	DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/env-hooks
+)
+
 install(TARGETS rosbag_fancy
 	RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
