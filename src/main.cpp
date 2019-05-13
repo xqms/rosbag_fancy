@@ -30,20 +30,40 @@ int main(int argc, char** argv)
 		po::options_description desc("Options");
 		desc.add_options()
 			("help", "Display this help message")
-			("output", po::value<std::string>()->required(), "Output bag file")
+			("output,o", po::value<std::string>()->required(), "Output bag file")
 			("topic", po::value<std::vector<std::string>>()->required(), "Topics to record")
 			("queue-size", po::value<std::uint64_t>()->default_value(500ULL*1024*1024), "Queue size in bytes")
 		;
 
-		po::store(po::parse_command_line(argc, argv, desc), vm);
+		po::positional_options_description p;
+		p.add("topic", -1);
 
-		if(vm.count("help"))
-		{
+		auto usage = [&](){
+			std::cout << "Usage: rosbag_fancy [options] -o <bag file> <topics...>\n\n";
 			std::cout << desc << "\n";
-			return 0;
-		}
+		};
 
-		po::notify(vm);
+		try
+		{
+			po::store(
+				po::command_line_parser(argc, argv).options(desc).positional(p).run(),
+				vm
+			);
+
+			if(vm.count("help"))
+			{
+				usage();
+				return 0;
+			}
+
+			po::notify(vm);
+		}
+		catch(po::error& e)
+		{
+			std::cerr << "Could not parse arguments: " << e.what() << "\n\n";
+			usage();
+			return 1;
+		}
 	}
 
 	ros::NodeHandle nh{"~"};
