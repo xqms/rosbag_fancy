@@ -14,9 +14,12 @@ namespace rosbag_fancy
 
 struct Topic
 {
-	explicit Topic(const std::string& name)
+	explicit Topic(const std::string& name, float rateLimit = 0.0f)
 	 : name(name)
-	{}
+	{
+		if(rateLimit != 0)
+			this->rateLimit = ros::Duration(1.0f / rateLimit);
+	}
 
 	Topic(const Topic& other) = delete;
 	Topic& operator=(const Topic& other) = delete;
@@ -25,9 +28,11 @@ struct Topic
 	Topic& operator=(Topic&& other) = default;
 
 	std::string name;
+	ros::Duration rateLimit;
 
 	// Status
 	ros::WallTime lastMessageTime;
+	ros::Time lastMessageROSTime;
 	std::uint64_t messagesInStatsPeriod = 0;
 	std::uint64_t bytesInStatsPeriod = 0;
 
@@ -51,8 +56,10 @@ struct Topic
 	static constexpr float DECAY = -std::log(0.5f)/HALF_LIFE;
 	static const ros::WallTime T0;
 
-	void notifyMessage(const ros::WallTime& time, std::uint64_t bytes)
+	void notifyMessage(std::uint64_t bytes)
 	{
+		ros::WallTime time = ros::WallTime::now();
+
 		totalMessages++;
 		totalBytes += bytes;
 		bytesInStatsPeriod += bytes;
@@ -64,6 +71,7 @@ struct Topic
 		lambdaSmoothLast = DECAY * tDelta * expL * lambdaLast + expL * lambdaSmoothLast;
 		lambdaLast = DECAY + expL * lambdaLast;
 		lastMessageTime = time;
+		lastMessageROSTime = ros::Time::now();
 	}
 
 	inline float messageRateAt(const ros::WallTime& time)
@@ -87,7 +95,7 @@ public:
 	inline std::vector<Topic>& topics()
 	{ return m_topics; }
 
-	void addTopic(const std::string& topic);
+	void addTopic(const std::string& topic, float rateLimit = 0.0f);
 private:
 	void updateStatistics();
 

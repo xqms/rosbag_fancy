@@ -40,7 +40,10 @@ int main(int argc, char** argv)
 
 		auto usage = [&](){
 			std::cout << "Usage: rosbag_fancy [options] -o <bag file> <topics...>\n\n";
-			std::cout << desc << "\n";
+			std::cout << desc << "\n\n";
+			std::cout << "Topics may be annotated with a rate limit in Hz, e.g.:\n";
+			std::cout << "  rosbag_fancy -o test.bag /camera/image_raw=10.0\n";
+			std::cout << "\n";
 		};
 
 		try
@@ -72,9 +75,29 @@ int main(int argc, char** argv)
 	std::sort(topics.begin(), topics.end());
 
 	TopicManager topicManager;
-	for(auto& topicName : topics)
+	for(auto& topicSpec : topics)
 	{
-		topicManager.addTopic(topicName);
+		std::string name = topicSpec;
+		float rateLimit = 0.0f;
+
+		auto sepIdx = topicSpec.find('=');
+
+		if(sepIdx != std::string::npos)
+		{
+			name = topicSpec.substr(0, sepIdx);
+
+			try
+			{
+				rateLimit = boost::lexical_cast<float>(topicSpec.substr(sepIdx+1));
+			}
+			catch(boost::bad_lexical_cast&)
+			{
+				std::cerr << "Bad topic spec: '" << topicSpec << "'\n";
+				return 1;
+			}
+		}
+
+		topicManager.addTopic(name, rateLimit);
 	}
 
 	MessageQueue queue{vm["queue-size"].as<std::uint64_t>()};

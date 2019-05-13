@@ -34,7 +34,14 @@ void TopicSubscriber::handle(Topic& topic, const ros::MessageEvent<topic_tools::
 {
 	std::uint64_t bytes = msg.getConstMessage()->size();
 
-	topic.notifyMessage(ros::WallTime::now(), bytes);
+	if(topic.rateLimit != ros::Duration(0))
+	{
+		ros::Time now = ros::Time::now();
+		if(now - topic.lastMessageROSTime < topic.rateLimit)
+			return;
+	}
+
+	topic.notifyMessage(bytes);
 
 	if(!m_queue.push({topic.name, msg}))
 		topic.dropCounter++;

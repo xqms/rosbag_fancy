@@ -20,9 +20,9 @@ TopicManager::TopicManager()
 	);
 }
 
-void TopicManager::addTopic(const std::string& topic)
+void TopicManager::addTopic(const std::string& topic, float rateLimit)
 {
-	m_topics.emplace_back(topic);
+	m_topics.emplace_back(topic, rateLimit);
 }
 
 void TopicManager::updateStatistics()
