@@ -1,0 +1,37 @@
+
+cmake_minimum_required(VERSION 3.0)
+project(rosbag_fancy)
+
+find_package(catkin REQUIRED COMPONENTS
+	rosbag_storage
+	roscpp
+	rosfmt
+	topic_tools
+)
+
+catkin_package()
+
+include_directories(${catkin_INCLUDE_DIRS})
+
+find_package(Curses REQUIRED)
+include_directories(${CURSES_INCLUDE_DIRS})
+
+set(CMAKE_CXX_STANDARD 17)
+
+add_executable(rosbag_fancy
+	src/bag_writer.cpp
+	src/main.cpp
+	src/message_queue.cpp
+	src/terminal.cpp
+	src/topic_subscriber.cpp
+	src/topic_manager.cpp
+	src/ui.cpp
+)
+target_link_libraries(rosbag_fancy
+	${catkin_LIBRARIES}
+	${CURSES_LIBRARIES}
+)
+
+install(TARGETS rosbag_fancy
+	RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
