@@ -190,7 +190,7 @@ void UI::draw()
 		{"Act"},
 		{"Topic", 30},
 		{"Pub"},
-		{"Messages", 20},
+		{"Messages", 21},
 		{"Bytes", 25},
 		{"Drops"}
 	}}};
@@ -218,7 +218,7 @@ void UI::draw()
 
 		uint32_t messageColor = (topic.totalMessages == 0) ? 0x0000FF : 0;
 
-		writer.printColumn(fmt::format("{:10} ({:4.1f} Hz)", topic.totalMessages, messageRate), messageColor);
+		writer.printColumn(fmt::format("{:10} ({:5.1f} Hz)", topic.totalMessages, messageRate), messageColor);
 		writer.printColumn(fmt::format("{:>10} ({:>10}/s)", memoryToString(topic.totalBytes), memoryToString(topic.bandwidth)));
 
 		writer.printColumn(topic.dropCounter, topic.dropCounter > 0 ? 0x0000FF : 0);
@@ -244,7 +244,7 @@ void UI::draw()
 		writer.printColumn("");
 	writer.printColumn("All");
 	writer.printColumn("");
-	writer.printColumn(fmt::format("{:10} ({:4.1f} Hz)", totalMessages, totalRate));
+	writer.printColumn(fmt::format("{:10} ({:5.1f} Hz)", totalMessages, totalRate));
 	writer.printColumn(fmt::format("{:>10} ({:>10}/s)", memoryToString(totalBytes), memoryToString(totalBandwidth)));
 	writer.printColumn(totalDrops, totalDrops > 0 ? 0x0000FF : 0);
 
