@@ -41,7 +41,7 @@ namespace
 	std::string memoryToString(uint64_t memory)
 	{
 		if(memory < static_cast<uint64_t>(1<<10))
-			return fmt::format("{} B", memory);
+			return fmt::format("{}.0   B", memory);
 		else if(memory < static_cast<uint64_t>(1<<20))
 			return fmt::format("{:.1f} KiB", static_cast<double>(memory) / static_cast<uint64_t>(1<<10));
 		else if(memory < static_cast<uint64_t>(1<<30))
@@ -50,6 +50,16 @@ namespace
 			return fmt::format("{:.1f} GiB", static_cast<double>(memory) / static_cast<uint64_t>(1ull<<30));
 		else
 			return fmt::format("{:.1f} TiB", static_cast<double>(memory) / static_cast<uint64_t>(1ull<<40));
+	}
+
+	std::string rateToString(double rate)
+	{
+		if(rate < 1000.0)
+			return fmt::format("{:5.1f}  Hz", rate);
+		else if(rate < 1e6)
+			return fmt::format("{:5.1f} kHz", rate / 1e3);
+		else
+			return fmt::format("{:5.1f} MHz", rate / 1e6);
 	}
 
 	template<int Columns>
@@ -186,11 +196,15 @@ void UI::draw()
 	bool totalActivity = false;
 	unsigned int totalDrops = 0;
 
+	unsigned int maxTopicWidth = 0;
+	for(auto& topic : m_topicManager.topics())
+		maxTopicWidth = std::max<unsigned int>(maxTopicWidth, topic.name.length());
+
 	TableWriter<6> writer{m_term, {{
 		{"Act"},
-		{"Topic", 30},
+		{"Topic", maxTopicWidth},
 		{"Pub"},
-		{"Messages", 21},
+		{"Messages", 22},
 		{"Bytes", 25},
 		{"Drops"}
 	}}};
@@ -218,7 +232,7 @@ void UI::draw()
 
 		uint32_t messageColor = (topic.totalMessages == 0) ? 0x0000FF : 0;
 
-		writer.printColumn(fmt::format("{:10} ({:5.1f} Hz)", topic.totalMessages, messageRate), messageColor);
+		writer.printColumn(fmt::format("{:10} ({:>8})", topic.totalMessages, rateToString(messageRate)), messageColor);
 		writer.printColumn(fmt::format("{:>10} ({:>10}/s)", memoryToString(topic.totalBytes), memoryToString(topic.bandwidth)));
 
 		writer.printColumn(topic.dropCounter, topic.dropCounter > 0 ? 0x0000FF : 0);
@@ -244,7 +258,7 @@ void UI::draw()
 		writer.printColumn("");
 	writer.printColumn("All");
 	writer.printColumn("");
-	writer.printColumn(fmt::format("{:10} ({:5.1f} Hz)", totalMessages, totalRate));
+	writer.printColumn(fmt::format("{:10} ({:>8})", totalMessages, rateToString(totalRate)));
 	writer.printColumn(fmt::format("{:>10} ({:>10}/s)", memoryToString(totalBytes), memoryToString(totalBandwidth)));
 	writer.printColumn(totalDrops, totalDrops > 0 ? 0x0000FF : 0);
 
