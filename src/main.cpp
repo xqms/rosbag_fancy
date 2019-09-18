@@ -14,8 +14,18 @@
 #include "terminal.h"
 #include "topic_subscriber.h"
 #include "ui.h"
+#include <iomanip>
 
 namespace po = boost::program_options;
+
+std::string timeToString ( const ros::Time & cur_ros_t )
+{
+	std::time_t cur_t = cur_ros_t.sec;
+	std::tm cur_tm = *std::localtime( & cur_t );
+	std::stringstream cur_ts;
+	cur_ts << std::put_time(&cur_tm, "%Y-%m-%d-%H-%M-%S");
+	return cur_ts.str();
+}
 
 int main(int argc, char** argv)
 {
@@ -30,7 +40,8 @@ int main(int argc, char** argv)
 		po::options_description desc("Options");
 		desc.add_options()
 			("help", "Display this help message")
-			("output,o", po::value<std::string>()->required(), "Output bag file")
+			("prefix,p", po::value<std::string>(), "Prefix for output bag file")
+			("output,o", po::value<std::string>(), "Output bag file")
 			("topic", po::value<std::vector<std::string>>()->required(), "Topics to record")
 			("queue-size", po::value<std::uint64_t>()->default_value(500ULL*1024*1024), "Queue size in bytes")
 		;
@@ -43,6 +54,7 @@ int main(int argc, char** argv)
 			std::cout << desc << "\n\n";
 			std::cout << "Topics may be annotated with a rate limit in Hz, e.g.:\n";
 			std::cout << "  rosbag_fancy -o test.bag /camera/image_raw=10.0\n";
+			std::cout << "  rosbag_fancy -p test /camera/image_raw=10.0\n";
 			std::cout << "\n";
 		};
 
@@ -103,9 +115,24 @@ int main(int argc, char** argv)
 	MessageQueue queue{vm["queue-size"].as<std::uint64_t>()};
 	BagWriter writer{queue};
 
+	std::string bagName = "";
+	if ( vm.count("output") )
+	{
+		bagName = vm["output"].as<std::string>();
+	}
+	else
+	{
+		if ( vm.count("prefix") )
+		{
+			bagName = vm["prefix"].as<std::string>();
+		}
+		bagName = bagName + "_"+ timeToString(ros::Time::now()) + ".bag";
+	}
+	ROSFMT_INFO("Bagfile name: %s", bagName); 
+
 	try
 	{
-		writer.start(vm["output"].as<std::string>());
+		writer.start(bagName);
 	}
 	catch(rosbag::BagException& e)
 	{
