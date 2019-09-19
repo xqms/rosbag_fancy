@@ -14,17 +14,15 @@
 #include "terminal.h"
 #include "topic_subscriber.h"
 #include "ui.h"
-#include <iomanip>
 
 namespace po = boost::program_options;
 
-std::string timeToString ( const ros::Time & cur_ros_t )
+std::string timeToString(const ros::Time& cur_ros_t)
 {
 	std::time_t cur_t = cur_ros_t.sec;
-	std::tm cur_tm = *std::localtime( & cur_t );
-	std::stringstream cur_ts;
-	cur_ts << std::put_time(&cur_tm, "%Y-%m-%d-%H-%M-%S");
-	return cur_ts.str();
+	std::stringstream ss;
+	ss << std::put_time(std::localtime(&cur_t), "%Y-%m-%d-%H-%M-%S");
+	return ss.str();
 }
 
 int main(int argc, char** argv)
@@ -116,17 +114,17 @@ int main(int argc, char** argv)
 	BagWriter writer{queue};
 
 	std::string bagName = "";
-	if ( vm.count("output") )
+	if(vm.count("output"))
 	{
 		bagName = vm["output"].as<std::string>();
 	}
 	else
 	{
-		if ( vm.count("prefix") )
+		if(vm.count("prefix"))
 		{
 			bagName = vm["prefix"].as<std::string>();
 		}
-		bagName = bagName + "_"+ timeToString(ros::Time::now()) + ".bag";
+		bagName = bagName + "_" + timeToString(ros::Time::now()) + ".bag";
 	}
 	ROSFMT_INFO("Bagfile name: %s", bagName); 
 
