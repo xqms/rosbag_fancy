@@ -125,7 +125,7 @@ int main(int argc, char** argv)
 			timeToString(ros::Time::now())
 		);
 	}
-	ROSFMT_INFO("Bagfile name: %s", bagName); 
+	ROSFMT_INFO("Bagfile name: {}", bagName);
 
 	try
 	{
