@@ -16,6 +16,7 @@
 #include "ui.h"
 
 namespace po = boost::program_options;
+using namespace rosbag_fancy;
 
 std::string timeToString(const ros::Time& cur_ros_t)
 {
@@ -25,12 +26,8 @@ std::string timeToString(const ros::Time& cur_ros_t)
 	return ss.str();
 }
 
-int main(int argc, char** argv)
+int record(const std::vector<std::string>& options)
 {
-	using namespace rosbag_fancy;
-
-	ros::init(argc, argv, "rosbag_fancy", ros::init_options::AnonymousName);
-
 	po::variables_map vm;
 
 	// Handle CLI arguments
@@ -48,7 +45,7 @@ int main(int argc, char** argv)
 		p.add("topic", -1);
 
 		auto usage = [&](){
-			std::cout << "Usage: rosbag_fancy [options] -o <bag file> <topics...>\n\n";
+			std::cout << "Usage: rosbag_fancy record [options] -o <bag file> <topics...>\n\n";
 			std::cout << desc << "\n\n";
 			std::cout << "Topics may be annotated with a rate limit in Hz, e.g.:\n";
 			std::cout << "  rosbag_fancy /camera/image_raw=10.0\n";
@@ -58,7 +55,7 @@ int main(int argc, char** argv)
 		try
 		{
 			po::store(
-				po::command_line_parser(argc, argv).options(desc).positional(p).run(),
+				po::command_line_parser(options).options(desc).positional(p).run(),
 				vm
 			);
 
@@ -134,6 +131,7 @@ int main(int argc, char** argv)
 	catch(rosbag::BagException& e)
 	{
 		ROSFMT_ERROR("Could not open output bag file: %s", e.what());
+		return 1;
 	}
 
 	TopicSubscriber subscriber{topicManager, queue};
@@ -144,3 +142,48 @@ int main(int argc, char** argv)
 
 	return 0;
 }
+
+
+
+int main(int argc, char** argv)
+{
+	ros::init(argc, argv, "rosbag_fancy", ros::init_options::AnonymousName);
+
+	auto usage = [](std::FILE* f){
+		fmt::print(f,
+			"Usage: rosbag_fancy <command> [args]\n\n"
+			"Available commands:\n"
+			"  record: Record a bagfile\n"
+			"\n"
+			"See rosbag_fancy <command> --help for command-specific instructions.\n"
+			"\n"
+		);
+	};
+
+	if(argc < 2)
+	{
+		usage(stderr);
+		return 1;
+	}
+
+	std::string cmd = std::string(argv[1]);
+	std::vector<std::string> arguments(argc - 2);
+	std::copy(argv + 2, argv + argc, arguments.begin());
+
+	if(cmd == "-h" || cmd == "--help")
+	{
+		usage(stdout);
+		return 0;
+	}
+
+	if(cmd == "record")
+		return record(arguments);
+	else
+	{
+		fmt::print(stderr, "Unknown command {}, see --help\n", cmd);
+		return 1;
+	}
+
+	return 0;
+}
+
