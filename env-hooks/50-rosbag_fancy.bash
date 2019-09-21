@@ -15,7 +15,7 @@ function _rosbag_fancy() {
 	local cmd="${COMP_WORDS[1]}"
 
 	local FLAGS=( --help )
-	local OPTS=( --topic --queue-size -o --output )
+	local OPTS=( --topic --queue-size -o --output -p --prefix )
 
 	# Are we currently inside an option?
 	if [[ " ${OPTS[@]} " =~ " ${COMP_WORDS[COMP_CWORD-1]} " ]]; then
