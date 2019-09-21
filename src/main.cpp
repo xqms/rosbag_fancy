@@ -17,6 +17,14 @@
 
 namespace po = boost::program_options;
 
+std::string timeToString(const ros::Time& cur_ros_t)
+{
+	std::time_t cur_t = cur_ros_t.sec;
+	std::stringstream ss;
+	ss << std::put_time(std::localtime(&cur_t), "%Y-%m-%d-%H-%M-%S");
+	return ss.str();
+}
+
 int main(int argc, char** argv)
 {
 	using namespace rosbag_fancy;
@@ -30,7 +38,8 @@ int main(int argc, char** argv)
 		po::options_description desc("Options");
 		desc.add_options()
 			("help", "Display this help message")
-			("output,o", po::value<std::string>()->required(), "Output bag file")
+			("prefix,p", po::value<std::string>()->default_value("bag"), "Prefix for output bag file. The prefix is extended with a timestamp.")
+			("output,o", po::value<std::string>(), "Output bag file (overrides --prefix)")
 			("topic", po::value<std::vector<std::string>>()->required(), "Topics to record")
 			("queue-size", po::value<std::uint64_t>()->default_value(500ULL*1024*1024), "Queue size in bytes")
 		;
@@ -42,7 +51,7 @@ int main(int argc, char** argv)
 			std::cout << "Usage: rosbag_fancy [options] -o <bag file> <topics...>\n\n";
 			std::cout << desc << "\n\n";
 			std::cout << "Topics may be annotated with a rate limit in Hz, e.g.:\n";
-			std::cout << "  rosbag_fancy -o test.bag /camera/image_raw=10.0\n";
+			std::cout << "  rosbag_fancy /camera/image_raw=10.0\n";
 			std::cout << "\n";
 		};
 
@@ -103,9 +112,24 @@ int main(int argc, char** argv)
 	MessageQueue queue{vm["queue-size"].as<std::uint64_t>()};
 	BagWriter writer{queue};
 
+	// Figure out the output file name
+	std::string bagName = "";
+	if(vm.count("output"))
+		bagName = vm["output"].as<std::string>();
+	else
+	{
+		std::string prefix = vm["prefix"].as<std::string>();
+
+		bagName = fmt::format("{}_{}.bag",
+			vm["prefix"].as<std::string>(),
+			timeToString(ros::Time::now())
+		);
+	}
+	ROSFMT_INFO("Bagfile name: {}", bagName);
+
 	try
 	{
-		writer.start(vm["output"].as<std::string>());
+		writer.start(bagName);
 	}
 	catch(rosbag::BagException& e)
 	{
