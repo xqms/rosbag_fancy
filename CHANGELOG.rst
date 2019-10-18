@@ -2,7 +2,7 @@
 Changelog for package rosbag_fancy
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.1.0 (2019-10-18)
+------------------
 * Initial release 
 * Contributors: Jan Quenzel, Max Schwarz
