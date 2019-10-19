@@ -8,6 +8,7 @@
 
 #include <rosbag/bag.h>
 
+
 #include "topic_manager.h"
 #include "message_queue.h"
 #include "bag_writer.h"
@@ -31,26 +32,27 @@ int record(const std::vector<std::string>& options)
 	po::variables_map vm;
 
 	// Handle CLI arguments
-	{
+  {
 		po::options_description desc("Options");
-		desc.add_options()
-			("help", "Display this help message")
-			("prefix,p", po::value<std::string>()->default_value("bag"), "Prefix for output bag file. The prefix is extended with a timestamp.")
-			("output,o", po::value<std::string>(), "Output bag file (overrides --prefix)")
-			("topic", po::value<std::vector<std::string>>()->required(), "Topics to record")
-			("queue-size", po::value<std::uint64_t>()->default_value(500ULL*1024*1024), "Queue size in bytes")
-		;
+    desc.add_options()
+      ("help", "Display this help message")
+      ("all,a", "Record all the published topics")
+      ("prefix,p", po::value<std::string>()->default_value("bag"), "Prefix for output bag file. The prefix is extended with a timestamp.")
+      ("output,o", po::value<std::string>(), "Output bag file (overrides --prefix)")
+      ("topic", po::value<std::vector<std::string>>(), "Topics to record")
+      ("queue-size", po::value<std::uint64_t>()->default_value(500ULL*1024*1024), "Queue size in bytes")
+    ;
+
+    auto usage = [&](){
+      std::cout << "Usage: rosbag_fancy record [options] -o <bag file> <topics...>\n\n";
+      std::cout << desc << "\n\n";
+      std::cout << "Topics may be annotated with a rate limit in Hz, e.g.:\n";
+      std::cout << "  rosbag_fancy /camera/image_raw=10.0\n";
+      std::cout << "\n";
+    };
 
 		po::positional_options_description p;
 		p.add("topic", -1);
-
-		auto usage = [&](){
-			std::cout << "Usage: rosbag_fancy record [options] -o <bag file> <topics...>\n\n";
-			std::cout << desc << "\n\n";
-			std::cout << "Topics may be annotated with a rate limit in Hz, e.g.:\n";
-			std::cout << "  rosbag_fancy /camera/image_raw=10.0\n";
-			std::cout << "\n";
-		};
 
 		try
 		{
@@ -72,13 +74,45 @@ int record(const std::vector<std::string>& options)
 			std::cerr << "Could not parse arguments: " << e.what() << "\n\n";
 			usage();
 			return 1;
-		}
+    }
+
+    if(vm.count("all") && vm.count("topic"))
+    {
+      std::cerr << "Options --all and --topic are mutually exclusive" << std::endl;
+      usage();
+      return 1;
+    }
+    if(!vm.count("all") && !vm.count("topic"))
+    {
+      std::cerr << "You must use either the option --all or --topic" << std::endl;
+      usage();
+      return 1;
+    }
 	}
 
 	ros::NodeHandle nh{"~"};
 
-	std::vector<std::string> topics = vm["topic"].as<std::vector<std::string>>();
-	std::sort(topics.begin(), topics.end());
+  std::vector<std::string> topics;
+
+  //ros::Timer periodic_timer;
+
+  if(vm.count("topic"))
+  {
+    topics = vm["topic"].as<std::vector<std::string>>();
+  }
+  else{ // option --all
+    ros::master::V_TopicInfo topic_infos;
+    ros::master::getTopics(topic_infos);
+    for (ros::master::TopicInfo topic_info: topic_infos)
+    {
+      topics.push_back(topic_info.name);
+    }
+
+    // TODO: topics might be published later. we must add them too.
+
+    //periodic_timer = nh.createTimer(ros::Duration(0.01), subscribeToMissingTopics);
+  }
+  std::sort(topics.begin(), topics.end());
 
 	TopicManager topicManager;
 	for(auto& topicSpec : topics)

@@ -29,7 +29,7 @@ bool MessageQueue::push(const rosbag_fancy::MessageQueue::Message& msg)
 	return true;
 }
 
-std::optional<MessageQueue::Message> MessageQueue::pop()
+boost::optional<MessageQueue::Message> MessageQueue::pop()
 {
 	std::unique_lock<std::mutex> lock(m_mutex);
 
@@ -50,7 +50,7 @@ std::optional<MessageQueue::Message> MessageQueue::pop()
 	m_msgsInQueue--;
 	m_queue.pop();
 
-	return {msg};
+  return msg;
 }
 
 void MessageQueue::shutdown()

@@ -7,9 +7,9 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
-
+#include <atomic>
 #include <ros/message_event.h>
-
+#include <boost/optional.hpp>
 #include <topic_tools/shape_shifter.h>
 
 namespace rosbag_fancy
@@ -30,7 +30,7 @@ public:
 	explicit MessageQueue(uint64_t byteLimit);
 
 	bool push(const Message& msg);
-	std::optional<Message> pop();
+  boost::optional<Message> pop();
 
 	void shutdown();
 
@@ -44,8 +44,8 @@ private:
 	std::mutex m_mutex;
 	std::condition_variable m_cond;
 
-	std::atomic_uint64_t m_bytesInQueue{0};
-	std::atomic_uint64_t m_msgsInQueue{0};
+  std::atomic<std::uint64_t> m_bytesInQueue{0};
+  std::atomic<std::uint64_t> m_msgsInQueue{0};
 	uint64_t m_byteLimit;
 
 	bool m_shuttingDown{false};

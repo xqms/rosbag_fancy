@@ -6,7 +6,7 @@
 
 #include <string>
 #include <thread>
-
+#include <atomic>
 #include <rosbag/bag.h>
 #include <ros/steady_timer.h>
 
@@ -39,8 +39,9 @@ private:
 	std::thread m_thread;
 
 	bool m_shouldShutdown{false};
+  bool m_opened{false};
 
-	std::atomic_uint64_t m_sizeInBytes = 0;
+  std::atomic<std::uint64_t> m_sizeInBytes{0};
 	std::uint64_t m_freeSpace = 0;
 
 	ros::SteadyTimer m_freeSpaceTimer;
