@@ -4,6 +4,7 @@
 #ifndef ROSBAG_FANCY_BAG_WRITER_H
 #define ROSBAG_FANCY_BAG_WRITER_H
 
+#include <atomic>
 #include <string>
 #include <thread>
 
@@ -35,12 +36,13 @@ private:
 
 	MessageQueue& m_queue;
 	rosbag::Bag m_bag;
+	bool m_bagOpen{false};
 
 	std::thread m_thread;
 
 	bool m_shouldShutdown{false};
 
-	std::atomic_uint64_t m_sizeInBytes = 0;
+	std::atomic<std::uint64_t> m_sizeInBytes{0};
 	std::uint64_t m_freeSpace = 0;
 
 	ros::SteadyTimer m_freeSpaceTimer;
