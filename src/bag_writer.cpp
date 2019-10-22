@@ -4,6 +4,8 @@
 #include "bag_writer.h"
 #include "message_queue.h"
 
+#include <boost/filesystem.hpp>
+
 #include <ros/node_handle.h>
 
 namespace rosbag_fancy
@@ -21,7 +23,7 @@ BagWriter::BagWriter(rosbag_fancy::MessageQueue& queue)
 
 BagWriter::~BagWriter()
 {
-	if(m_bag.isOpen())
+	if(m_bagOpen)
 	{
 		m_shouldShutdown = true;
 		m_queue.shutdown();
@@ -47,6 +49,7 @@ void BagWriter::start(const std::string& filename)
 	m_filename = filename;
 
 	m_bag.open(filename, rosbag::bagmode::Write);
+	m_bagOpen = true;
 	m_thread = std::thread{std::bind(&BagWriter::run, this)};
 }
 
