@@ -53,7 +53,8 @@ struct Topic
 	float lambdaSmoothLast = 0.0f;
 
 	static constexpr float HALF_LIFE = 1.0f;
-	static constexpr float DECAY = -std::log(0.5f)/HALF_LIFE;
+	static constexpr float LOG05 = -0.6931471805599453f; // std::log(0.5f)
+	static constexpr float DECAY = -LOG05/HALF_LIFE;
 	static const ros::WallTime T0;
 
 	void notifyMessage(std::uint64_t bytes)
