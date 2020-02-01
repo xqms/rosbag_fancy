@@ -11,5 +11,6 @@
 	<depend>rosbag_storage</depend>
 	<depend>roscpp</depend>
 	<depend>rosfmt</depend>
+	<depend>tf2_ros</depend>
 	<depend>topic_tools</depend>
 </package>

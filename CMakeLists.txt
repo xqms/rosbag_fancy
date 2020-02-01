@@ -7,6 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
 	roscpp
 	rosfmt
 	topic_tools
+	tf2_ros
 )
 
 catkin_package()
@@ -32,6 +33,15 @@ target_link_libraries(rosbag_fancy
 	${CURSES_LIBRARIES}
 )
 
+# Tools
+add_executable(tf2_republisher
+	tools/tf2_republisher.cpp
+)
+target_link_libraries(tf2_republisher
+	${catkin_LIBRARIES}
+)
+
+# Shell helper
 # Version 1.7 (increment this comment to trigger a CMake update)
 catkin_add_env_hooks(50-rosbag_fancy
 	SHELLS bash
