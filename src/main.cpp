@@ -33,6 +33,7 @@ int record(const std::vector<std::string>& options)
 			("output,o", po::value<std::string>(), "Output bag file (overrides --prefix)")
 			("topic", po::value<std::vector<std::string>>()->required(), "Topics to record")
 			("queue-size", po::value<std::uint64_t>()->default_value(500ULL*1024*1024), "Queue size in bytes")
+			("paused", "Start paused")
 		;
 
 		po::positional_options_description p;
@@ -140,8 +141,12 @@ int record(const std::vector<std::string>& options)
 		return true;
 	}));
 
-	if(!start())
-		return 1;
+	// Start recording if --paused is not given
+	if(vm.count("paused") == 0)
+	{
+		if(!start())
+			return 1;
+	}
 
 	TopicSubscriber subscriber{topicManager, queue};
 
