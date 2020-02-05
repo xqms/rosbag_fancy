@@ -63,6 +63,9 @@ void BagWriter::start()
 {
 	std::unique_lock<std::mutex> lock(m_mutex);
 
+	if(m_running)
+		return;
+
 	std::string filename;
 	switch(m_namingMode)
 	{
@@ -99,6 +102,8 @@ void BagWriter::stop()
 	}
 
 	m_running = false;
+
+	ROSFMT_INFO("Recording stopped.");
 }
 
 void BagWriter::checkFreeSpace()

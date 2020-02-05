@@ -29,6 +29,9 @@ public:
 	void draw();
 
 private:
+	template<class... Args>
+	void printLine(unsigned int& lineCounter, const Args& ... args);
+
 	TopicManager& m_topicManager;
 	MessageQueue& m_queue;
 	BagWriter& m_bagWriter;

@@ -30,14 +30,6 @@ namespace
 		term.setEcho(true);
 	}
 
-	template<class... Args>
-	void printLine(unsigned int& lineCounter, const Args& ... args)
-	{
-		lineCounter++;
-		fmt::print(args...);
-		putchar('\n');
-	}
-
 	std::string memoryToString(uint64_t memory)
 	{
 		if(memory < static_cast<uint64_t>(1<<10))
@@ -180,13 +172,21 @@ UI::UI(TopicManager& config, MessageQueue& queue, BagWriter& writer, Mode mode)
 	m_timer = nh.createSteadyTimer(ros::WallDuration(0.1), boost::bind(&UI::draw, this));
 }
 
+template<class... Args>
+void UI::printLine(unsigned int& lineCounter, const Args& ... args)
+{
+	lineCounter++;
+	m_term.clearToEndOfLine();
+	fmt::print(args...);
+	putchar('\n');
+}
+
 void UI::draw()
 {
 	unsigned int cnt = 0;
 
 	ros::WallTime now = ros::WallTime::now();
 
-	m_term.clearToEndOfLine();
 	if(m_bagWriter.running())
 		printLine(cnt, "Recording...");
 	else
