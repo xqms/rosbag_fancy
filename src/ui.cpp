@@ -186,7 +186,15 @@ void UI::draw()
 
 	ros::WallTime now = ros::WallTime::now();
 
-	printLine(cnt, "Recording...");
+	m_term.clearToEndOfLine();
+	if(m_bagWriter.running())
+		printLine(cnt, "Recording...");
+	else
+	{
+		m_term.setForegroundColor(0x0000FF);
+		printLine(cnt, "Paused.");
+		m_term.setStandardColors();
+	}
 	printLine(cnt, "");
 
 	uint64_t totalMessages = 0;

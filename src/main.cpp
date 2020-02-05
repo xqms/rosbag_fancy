@@ -8,6 +8,8 @@
 
 #include <rosbag/bag.h>
 
+#include <std_srvs/Trigger.h>
+
 #include "topic_manager.h"
 #include "message_queue.h"
 #include "bag_writer.h"
@@ -17,14 +19,6 @@
 
 namespace po = boost::program_options;
 using namespace rosbag_fancy;
-
-std::string timeToString(const ros::Time& cur_ros_t)
-{
-	std::time_t cur_t = cur_ros_t.sec;
-	std::stringstream ss;
-	ss << std::put_time(std::localtime(&cur_t), "%Y-%m-%d-%H-%M-%S");
-	return ss.str();
-}
 
 int record(const std::vector<std::string>& options)
 {
@@ -107,32 +101,47 @@ int record(const std::vector<std::string>& options)
 	}
 
 	MessageQueue queue{vm["queue-size"].as<std::uint64_t>()};
-	BagWriter writer{queue};
 
 	// Figure out the output file name
+	auto namingMode = BagWriter::Naming::Verbatim;
 	std::string bagName = "";
 	if(vm.count("output"))
+	{
 		bagName = vm["output"].as<std::string>();
+		namingMode = BagWriter::Naming::Verbatim;
+	}
 	else
 	{
-		std::string prefix = vm["prefix"].as<std::string>();
-
-		bagName = fmt::format("{}_{}.bag",
-			vm["prefix"].as<std::string>(),
-			timeToString(ros::Time::now())
-		);
+		bagName = vm["prefix"].as<std::string>();
+		namingMode = BagWriter::Naming::AppendTimestamp;
 	}
-	ROSFMT_INFO("Bagfile name: {}", bagName);
 
-	try
-	{
-		writer.start(bagName);
-	}
-	catch(rosbag::BagException& e)
-	{
-		ROSFMT_ERROR("Could not open output bag file: %s", e.what());
+	BagWriter writer{queue, bagName, namingMode};
+
+	auto start = [&](){
+		try
+		{
+			writer.start();
+		}
+		catch(rosbag::BagException& e)
+		{
+			ROSFMT_ERROR("Could not open output bag file: {}", e.what());
+			return false;
+		}
+		return true;
+	};
+
+	// Start/Stop service calls
+	ros::ServiceServer srv_start = nh.advertiseService("start", boost::function<bool(std_srvs::TriggerRequest&, std_srvs::TriggerResponse&)>(
+		std::bind(start)
+	));
+	ros::ServiceServer srv_stop = nh.advertiseService("stop", boost::function<bool(std_srvs::TriggerRequest&, std_srvs::TriggerResponse&)>([&](auto&, auto&){
+		writer.stop();
+		return true;
+	}));
+
+	if(!start())
 		return 1;
-	}
 
 	TopicSubscriber subscriber{topicManager, queue};
 

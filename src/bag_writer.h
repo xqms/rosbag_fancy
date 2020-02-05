@@ -7,6 +7,7 @@
 #include <atomic>
 #include <string>
 #include <thread>
+#include <mutex>
 
 #include <rosbag/bag.h>
 #include <ros/steady_timer.h>
@@ -19,10 +20,19 @@ class MessageQueue;
 class BagWriter
 {
 public:
-	explicit BagWriter(MessageQueue& queue);
+	enum class Naming
+	{
+		Verbatim,
+		AppendTimestamp
+	};
+
+	explicit BagWriter(MessageQueue& queue, const std::string& filename, Naming namingMode);
 	~BagWriter();
 
-	void start(const std::string& filename);
+	void start();
+	void stop();
+	bool running() const
+	{ return m_running; }
 
 	std::uint64_t sizeInBytes() const
 	{ return m_sizeInBytes; }
@@ -35,6 +45,10 @@ private:
 	void checkFreeSpace();
 
 	MessageQueue& m_queue;
+
+	std::string m_filename;
+	Naming m_namingMode;
+
 	rosbag::Bag m_bag;
 	bool m_bagOpen{false};
 
@@ -47,7 +61,8 @@ private:
 
 	ros::SteadyTimer m_freeSpaceTimer;
 
-	std::string m_filename;
+	std::atomic<bool> m_running{false};
+	std::mutex m_mutex;
 };
 
 }
