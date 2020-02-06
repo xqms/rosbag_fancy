@@ -10,6 +10,8 @@
 
 #include <ros/node_handle.h>
 
+#include <tf2_msgs/TFMessage.h>
+
 namespace rosbag_fancy
 {
 
@@ -35,6 +37,17 @@ BagWriter::BagWriter(rosbag_fancy::MessageQueue& queue, const std::string& filen
 	);
 	checkFreeSpace();
 
+	m_tf_header = boost::make_shared<std::map<std::string, std::string>>();
+	{
+		auto& connectionHeader = *m_tf_header;
+		connectionHeader["topic"] = "/tf_static";
+		connectionHeader["callerid"] = ros::this_node::getName();
+		connectionHeader["md5sum"] = ros::message_traits::MD5Sum<tf2_msgs::TFMessage>::value();
+		connectionHeader["type"] = "tf2_msgs/TFMessage";
+		connectionHeader["message_definition"] = ros::message_traits::Definition<tf2_msgs::TFMessage>::value();
+		connectionHeader["latching"] = "1";
+	}
+
 	m_thread = std::thread{std::bind(&BagWriter::run, this)};
 }
 
@@ -55,6 +68,17 @@ void BagWriter::run()
 			std::unique_lock<std::mutex> lock(m_mutex);
 			m_bag.write(msg->topic, msg->message);
 			m_sizeInBytes = m_bag.getSize();
+		}
+
+		if(msg->topic == "/tf_static")
+		{
+			auto shifter = msg->message.getMessage();
+			auto tf_msg = shifter->instantiate<tf2_msgs::TFMessage>();
+			if(tf_msg)
+			{
+				for(auto& transformMsg : tf_msg->transforms)
+					m_tf_buf.setTransform(transformMsg, "bag", true);
+			}
 		}
 	}
 }
@@ -81,6 +105,27 @@ void BagWriter::start()
 	{
 		ROSFMT_INFO("Opening bag file: {}", filename.c_str());
 		m_bag.open(filename, rosbag::bagmode::Write);
+
+		// Write all known transforms to /tf_static
+		{
+			auto tf_msg = boost::make_shared<tf2_msgs::TFMessage>();
+			std::vector<std::string> frames;
+			m_tf_buf._getFrameStrings(frames);
+
+			for(auto& frame : frames)
+			{
+				std::string parent;
+				if(!m_tf_buf._getParent(frame, ros::Time(0), parent))
+					continue;
+
+				geometry_msgs::TransformStamped transform = m_tf_buf.lookupTransform(parent, frame, ros::Time(0));
+				tf_msg->transforms.push_back(std::move(transform));
+			}
+
+			ros::MessageEvent<tf2_msgs::TFMessage> event{tf_msg, m_tf_header, ros::Time::now()};
+
+			m_bag.write("/tf_static", event);
+		}
 	}
 
 	m_bagOpen = true;

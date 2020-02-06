@@ -12,6 +12,8 @@
 #include <rosbag/bag.h>
 #include <ros/steady_timer.h>
 
+#include <tf2_ros/buffer.h>
+
 namespace rosbag_fancy
 {
 
@@ -63,6 +65,9 @@ private:
 
 	std::atomic<bool> m_running{false};
 	std::mutex m_mutex;
+
+	tf2_ros::Buffer m_tf_buf;
+	boost::shared_ptr<std::map<std::string, std::string>> m_tf_header;
 };
 
 }
