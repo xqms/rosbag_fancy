@@ -187,14 +187,6 @@ void UI::draw()
 
 	ros::WallTime now = ros::WallTime::now();
 
-	if(m_bagWriter.running())
-		printLine(cnt, "Recording...");
-	else
-	{
-		m_term.setForegroundColor(0x0000FF);
-		printLine(cnt, "Paused.");
-		m_term.setStandardColors();
-	}
 	printLine(cnt, "");
 
 	uint64_t totalMessages = 0;
@@ -274,6 +266,18 @@ void UI::draw()
 	cnt++;
 
 	printLine(cnt, "");
+	if(m_bagWriter.running())
+	{
+		m_term.setForegroundColor(0x00FF00);
+		printLine(cnt, "Recording...");
+		m_term.setStandardColors();
+	}
+	else
+	{
+		m_term.setForegroundColor(0x0000FF);
+		printLine(cnt, "Paused.");
+		m_term.setStandardColors();
+	}
 	printLine(cnt, "Message queue: {:10} messages, {:>10}", m_queue.messagesInQueue(), memoryToString(m_queue.bytesInQueue()));
 	printLine(cnt, "Bag size: {:>10}, available space: {:>10}",
 		memoryToString(m_bagWriter.sizeInBytes()),
