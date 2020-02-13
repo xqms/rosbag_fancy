@@ -12,6 +12,8 @@
 
 #include <tf2_msgs/TFMessage.h>
 
+namespace fs = boost::filesystem;
+
 namespace rosbag_fancy
 {
 
@@ -23,6 +25,18 @@ namespace
 		std::stringstream ss;
 		ss << std::put_time(std::localtime(&cur_t), "%Y-%m-%d-%H-%M-%S");
 		return ss.str();
+	}
+
+	std::string getNewFilename(const std::string& old)
+	{
+		for(int i = 2; i < 10; ++i)
+		{
+			auto tst_filename = fmt::format("{}.{}", old, i);
+			if(!fs::exists(tst_filename))
+				return tst_filename;
+		}
+
+		return {};
 	}
 }
 
@@ -63,11 +77,14 @@ void BagWriter::run()
 	while(!m_shouldShutdown)
 	{
 		auto msg = m_queue.pop();
-		if(m_running && msg)
+
 		{
 			std::unique_lock<std::mutex> lock(m_mutex);
-			m_bag.write(msg->topic, msg->message);
-			m_sizeInBytes = m_bag.getSize();
+			if(m_running && msg)
+			{
+				m_bag.write(msg->topic, msg->message);
+				m_sizeInBytes = m_bag.getSize();
+			}
 		}
 
 		if(msg->topic == "/tf_static")
@@ -103,6 +120,22 @@ void BagWriter::start()
 
 	if(!m_bagOpen)
 	{
+		// Don't overwrite existing files
+		if(fs::exists(filename))
+		{
+			auto replacement = getNewFilename(filename);
+			if(replacement.empty())
+			{
+				ROSFMT_ERROR("Could not find a bag file name to write to (template '{}')", filename);
+				ROSFMT_ERROR("Ignoring start request.");
+				m_bagOpen = false;
+				m_running = false;
+				return;
+			}
+
+			filename = replacement;
+		}
+
 		ROSFMT_INFO("Opening bag file: {}", filename.c_str());
 		m_bag.open(filename, rosbag::bagmode::Write);
 
