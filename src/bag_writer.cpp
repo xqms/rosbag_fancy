@@ -87,7 +87,7 @@ void BagWriter::run()
 			}
 		}
 
-		if(msg->topic == "/tf_static")
+		if(msg && msg->topic == "/tf_static")
 		{
 			auto shifter = msg->message.getMessage();
 			auto tf_msg = shifter->instantiate<tf2_msgs::TFMessage>();
