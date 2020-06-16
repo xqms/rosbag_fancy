@@ -2,8 +2,8 @@
 Changelog for package rosbag_fancy
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.2.0 (2020-06-16)
+------------------
 * bag_writer: fix uninitialized read in run() during shutdown
   This happens in certain cases during shutdown, where msg is not set.
 * bag_writer: make sure we don't overwrite bag files with same stamp
