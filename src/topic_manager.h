@@ -15,10 +15,8 @@ namespace rosbag_fancy
 struct Topic
 {
 	explicit Topic(const std::string& name, float rateLimit = 0.0f)
-	 : name(name)
+	 : name(name), rateLimit(rateLimit)
 	{
-		if(rateLimit != 0)
-			this->rateLimit = ros::Duration(1.0f / rateLimit);
 	}
 
 	Topic(const Topic& other) = delete;
@@ -28,13 +26,16 @@ struct Topic
 	Topic& operator=(Topic&& other) = default;
 
 	std::string name;
-	ros::Duration rateLimit;
+	float rateLimit;
 
 	// Status
 	ros::WallTime lastMessageTime;
 	ros::Time lastMessageROSTime;
+	ros::Time lastMessageReceivedROSTime;
 	std::uint64_t messagesInStatsPeriod = 0;
 	std::uint64_t bytesInStatsPeriod = 0;
+
+	float throttleAllowance = 0.0f;
 
 	float messageRate = 0.0f;
 	float bandwidth = 0.0f;

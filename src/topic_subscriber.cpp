@@ -34,11 +34,26 @@ void TopicSubscriber::handle(Topic& topic, const ros::MessageEvent<topic_tools::
 {
 	std::uint64_t bytes = msg.getConstMessage()->size();
 
-	if(topic.rateLimit != ros::Duration(0))
+	if(topic.rateLimit != 0.0f)
 	{
 		ros::Time now = ros::Time::now();
-		if(now - topic.lastMessageROSTime < topic.rateLimit)
-			return;
+		if(topic.lastMessageReceivedROSTime == ros::Time(0))
+			topic.lastMessageReceivedROSTime = now;
+		else
+		{
+			// Basic token bucket algorithm for rate limiting
+			ros::Duration elapsed = now - topic.lastMessageReceivedROSTime;
+			topic.lastMessageReceivedROSTime = now;
+
+			topic.throttleAllowance = std::min(2.0f,
+				topic.throttleAllowance + static_cast<float>(elapsed.toSec()) * topic.rateLimit
+			);
+
+			if(topic.throttleAllowance < 1.0f)
+				return;
+
+			topic.throttleAllowance -= 1.0f;
+		}
 	}
 
 	topic.notifyMessage(bytes);
