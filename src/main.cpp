@@ -57,6 +57,8 @@ int record(const std::vector<std::string>& options)
 			("output,o", po::value<std::string>(), "Output bag file (overrides --prefix)")
 			("topic", po::value<std::vector<std::string>>()->required(), "Topics to record")
 			("queue-size", po::value<std::uint64_t>()->default_value(500ULL*1024*1024), "Queue size in bytes")
+                        ("directory-cleanup-size", po::value<std::uint64_t>(), "Clean up directory at given size in bytes")
+                        ("start-stop-bag-size", po::value<std::uint64_t>(), "Bag size for start-stop in bytes")
 			("paused", "Start paused")
 			("no-ui", "Disable terminal UI")
 			("udp", "Subscribe using UDP transport")
@@ -147,7 +149,18 @@ int record(const std::vector<std::string>& options)
 		namingMode = BagWriter::Naming::AppendTimestamp;
 	}
 
-	BagWriter writer{queue, bagName, namingMode};
+        std::uint64_t startStopSizeInBytes = std::numeric_limits<std::uint64_t>::max();
+        if(vm.count("start-stop-bag-size"))
+        {
+            startStopSizeInBytes = vm["start-stop-bag-size"].as<std::uint64_t>();
+        }
+        std::uint64_t directoryCleanUpSizeInBytes = std::numeric_limits<std::uint64_t>::max();
+        if(vm.count("directory-cleanup-size"))
+        {
+            directoryCleanUpSizeInBytes = vm["directory-cleanup-size"].as<std::uint64_t>();
+        }
+
+        BagWriter writer{queue, bagName, namingMode, startStopSizeInBytes, directoryCleanUpSizeInBytes};
 
 	auto start = [&](){
 		try

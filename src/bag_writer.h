@@ -28,7 +28,7 @@ public:
 		AppendTimestamp
 	};
 
-	explicit BagWriter(MessageQueue& queue, const std::string& filename, Naming namingMode);
+        explicit BagWriter(MessageQueue& queue, const std::string& filename, Naming namingMode, const std::uint64_t & startStopSizeInBytes, const std::uint64_t & directoryCleanUpSizeInBytes);
 	~BagWriter();
 
 	void start();
@@ -38,6 +38,15 @@ public:
 
 	std::uint64_t sizeInBytes() const
 	{ return m_sizeInBytes; }
+
+        std::uint64_t startStopSizeInBytes() const
+        { return m_startStopSizeInBytes; }
+
+        std::uint64_t directorySizeInBytes() const
+        { return m_directorySizeInBytes; }
+
+        std::uint64_t directoryCleanUpSizeInBytes() const
+        { return m_directoryCleanUpSizeInBytes; }
 
 	std::uint64_t freeSpace() const
 	{ return m_freeSpace; }
@@ -58,6 +67,11 @@ private:
 	Naming m_namingMode;
 
 	std::string m_expandedFilename;
+
+	bool m_isReopeningBag{false};
+	std::uint64_t m_startStopSizeInBytes = std::numeric_limits<std::uint64_t>::max();
+	std::uint64_t m_directoryCleanUpSizeInBytes = std::numeric_limits<std::uint64_t>::max();
+	std::atomic<std::uint64_t> m_directorySizeInBytes{0};
 
 	rosbag::Bag m_bag;
 	bool m_bagOpen{false};

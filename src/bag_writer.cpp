@@ -8,6 +8,8 @@
 #include <rosfmt/rosfmt.h>
 
 #include <boost/filesystem.hpp>
+#include <boost/range/iterator_range.hpp>
+#include <map>
 
 #include <ros/node_handle.h>
 
@@ -39,12 +41,52 @@ namespace
 
 		return {};
 	}
+
+        std::vector<fs::path> getBagFilesInCurrentFolder( const std::string& filename )
+        {
+                std::vector<fs::path> bagFiles;
+                auto path = fs::absolute(fs::path(filename)).parent_path();
+                for ( auto & entry : boost::make_iterator_range(fs::directory_iterator(path), {}))
+                {
+                        auto filePath = entry.path();
+                        if ( fs::extension(filePath) == ".bag" )
+                        {
+                                bagFiles.emplace_back(filePath);
+                        }
+                }
+                return bagFiles;
+        }
+
+        std::vector<fs::path> sortFilesByTime ( const std::vector<fs::path> & files )
+        {
+            std::multimap<std::time_t,fs::path> timeFiles;
+            for ( auto & entry : files)
+            {
+                    timeFiles.emplace(fs::last_write_time(entry),entry);
+            }
+            std::vector<fs::path> timeSortedFiles;
+            if ( ! timeFiles.empty() )
+                std::transform( timeFiles.begin(), timeFiles.end(), std::back_inserter(timeSortedFiles), [](auto &kv){ return kv.second;} );
+            return timeSortedFiles;
+        }
+
+        std::uint64_t getTotalSizeInBytes( const std::vector<fs::path> & files )
+        {
+            std::uint64_t totalSizeInBytes = 0;
+            for ( auto & entry : files)
+            {
+                    totalSizeInBytes += fs::file_size(entry);
+            }
+            return totalSizeInBytes;
+        }
 }
 
-BagWriter::BagWriter(rosbag_fancy::MessageQueue& queue, const std::string& filename, Naming namingMode)
+BagWriter::BagWriter(rosbag_fancy::MessageQueue& queue, const std::string& filename, Naming namingMode, const std::uint64_t & startStopSizeInBytes, const std::uint64_t & directoryCleanUpSizeInBytes )
  : m_queue{queue}
  , m_filename{filename}
  , m_namingMode{namingMode}
+ , m_startStopSizeInBytes{startStopSizeInBytes}
+ , m_directoryCleanUpSizeInBytes{directoryCleanUpSizeInBytes}
 {
 	ros::NodeHandle nh;
 	m_freeSpaceTimer = nh.createSteadyTimer(ros::WallDuration(5.0),
@@ -103,6 +145,14 @@ void BagWriter::run()
 					m_tf_buf.setTransform(transformMsg, "bag", true);
 			}
 		}
+                if ( m_sizeInBytes >= m_startStopSizeInBytes )
+                {
+                    m_isReopeningBag = true;
+                    stop();
+                    //ROSFMT_INFO("Bag size: {} maxSize: {}",m_sizeInBytes, m_maxBagSize);
+                    start();
+                    m_isReopeningBag = false;
+                }
 	}
 }
 
@@ -128,6 +178,28 @@ void BagWriter::start()
 
 	if(!m_bagOpen)
 	{
+                if ( m_directorySizeInBytes > m_directoryCleanUpSizeInBytes )
+                {
+                        ROSFMT_INFO("Bag directory requires too much space.");
+
+                        std::vector<fs::path> bagFiles = getBagFilesInCurrentFolder( m_filename );
+                        std::vector<fs::path> timeSortedBagFiles = sortFilesByTime ( bagFiles );
+
+                        std::uint64_t directorySizeInBytes = getTotalSizeInBytes(bagFiles); // explicit new computation, since there might have been some changes in the mean time.
+                        for ( auto & entry : timeSortedBagFiles )
+                        {
+                            std::uint64_t bagSize = fs::file_size(entry);
+                            directorySizeInBytes -= bagSize;
+                            bool smallEnough = directorySizeInBytes < m_directoryCleanUpSizeInBytes;
+
+                            ROSFMT_INFO("Removing old bag file: {}", entry.c_str());
+                            fs::remove(entry);
+
+                            if ( smallEnough )
+                                break;
+                        }
+                }
+
 		// Don't overwrite existing files
 		if(fs::exists(filename))
 		{
@@ -198,9 +270,13 @@ void BagWriter::checkFreeSpace()
 {
 	namespace fs = boost::filesystem;
 
-	auto space = fs::space(fs::absolute(fs::path(m_filename)).parent_path());
+        auto path = fs::absolute(fs::path(m_filename)).parent_path();
+        auto space = fs::space(path);
 
 	m_freeSpace = space.available;
+
+        std::vector<fs::path> bagFiles = getBagFilesInCurrentFolder( m_filename );
+        m_directorySizeInBytes = getTotalSizeInBytes( bagFiles );
 }
 
 }
