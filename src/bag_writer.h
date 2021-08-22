@@ -28,7 +28,10 @@ public:
 		AppendTimestamp
 	};
 
-        explicit BagWriter(MessageQueue& queue, const std::string& filename, Naming namingMode, const std::uint64_t & startStopSizeInBytes, const std::uint64_t & directoryCleanUpSizeInBytes);
+	explicit BagWriter(
+		MessageQueue& queue, const std::string& filename, Naming namingMode,
+		std::uint64_t startStopSizeInBytes, std::uint64_t directoryCleanUpSizeInBytes
+	);
 	~BagWriter();
 
 	void start();
@@ -39,14 +42,14 @@ public:
 	std::uint64_t sizeInBytes() const
 	{ return m_sizeInBytes; }
 
-        std::uint64_t startStopSizeInBytes() const
-        { return m_startStopSizeInBytes; }
+	std::uint64_t startStopSizeInBytes() const
+	{ return m_startStopSizeInBytes; }
 
-        std::uint64_t directorySizeInBytes() const
-        { return m_directorySizeInBytes; }
+	std::uint64_t directorySizeInBytes() const
+	{ return m_directorySizeInBytes; }
 
-        std::uint64_t directoryCleanUpSizeInBytes() const
-        { return m_directoryCleanUpSizeInBytes; }
+	std::uint64_t directoryCleanUpSizeInBytes() const
+	{ return m_directoryCleanUpSizeInBytes; }
 
 	std::uint64_t freeSpace() const
 	{ return m_freeSpace; }
