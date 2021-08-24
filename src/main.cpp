@@ -151,37 +151,39 @@ int record(const std::vector<std::string>& options)
 		return true;
 	}));
 
-    // Status publisher
-    ros::Publisher pub_status = nh.advertise<Status>("status", 1);
-    ros::SteadyTimer timer_status = nh.createSteadyTimer(ros::WallDuration(0.5), boost::function<void(const ros::SteadyTimerEvent&)>([&](auto&){
-        StatusPtr msg = boost::make_shared<Status>();
-        msg->header.stamp = ros::Time::now();
+	// Status publisher
+	ros::Publisher pub_status = nh.advertise<Status>("status", 1);
+	ros::SteadyTimer timer_status = nh.createSteadyTimer(ros::WallDuration(0.5), boost::function<void(const ros::SteadyTimerEvent&)>([&](auto&){
+		ros::WallTime now = ros::WallTime::now();
 
-        msg->status = writer.running() ? Status::STATUS_RUNNING : Status::STATUS_PAUSED;
+		StatusPtr msg = boost::make_shared<Status>();
+		msg->header.stamp = ros::Time::now();
 
-        msg->bagfile = writer.bagfileName();
+		msg->status = writer.running() ? Status::STATUS_RUNNING : Status::STATUS_PAUSED;
 
-        msg->bytes = writer.sizeInBytes();
-        msg->free_bytes = writer.freeSpace();
-        msg->bandwidth = 0;
+		msg->bagfile = writer.bagfileName();
 
-        for(auto& topic : topicManager.topics())
-        {
-            msg->topics.emplace_back();
-            auto& topicMsg = msg->topics.back();
+		msg->bytes = writer.sizeInBytes();
+		msg->free_bytes = writer.freeSpace();
+		msg->bandwidth = 0;
 
-            msg->bandwidth += topic.bandwidth;
+		for(auto& topic : topicManager.topics())
+		{
+			msg->topics.emplace_back();
+			auto& topicMsg = msg->topics.back();
 
-            topicMsg.name = topic.name;
-            topicMsg.publishers = topic.numPublishers;
-            topicMsg.bandwidth = topic.bandwidth;
-            topicMsg.bytes = topic.totalBytes;
-            topicMsg.messages = topic.totalMessages;
-            topicMsg.rate = topic.messageRate;
-        }
+			msg->bandwidth += topic.bandwidth;
 
-        pub_status.publish(msg);
-    }));
+			topicMsg.name = topic.name;
+			topicMsg.publishers = topic.numPublishers;
+			topicMsg.bandwidth = topic.bandwidth;
+			topicMsg.bytes = topic.totalBytes;
+			topicMsg.messages = topic.totalMessages;
+			topicMsg.rate = topic.messageRateAt(now);
+		}
+
+		pub_status.publish(msg);
+	}));
 
 	// Start recording if --paused is not given
 	if(vm.count("paused") == 0)
