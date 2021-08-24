@@ -36,6 +36,7 @@ int record(const std::vector<std::string>& options)
 			("topic", po::value<std::vector<std::string>>()->required(), "Topics to record")
 			("queue-size", po::value<std::uint64_t>()->default_value(500ULL*1024*1024), "Queue size in bytes")
 			("paused", "Start paused")
+			("no-ui", "Disable terminal UI")
 		;
 
 		po::positional_options_description p;
@@ -186,7 +187,10 @@ int record(const std::vector<std::string>& options)
 
 	TopicSubscriber subscriber{topicManager, queue};
 
-	UI ui{topicManager, queue, writer, UI::Mode::Recording};
+	std::unique_ptr<UI> ui;
+
+	if(!vm.count("no-ui"))
+		ui.reset(new UI{topicManager, queue, writer, UI::Mode::Recording});
 
 	ros::spin();
 
