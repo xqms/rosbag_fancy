@@ -41,6 +41,9 @@ public:
 
 	std::uint64_t freeSpace() const
 	{ return m_freeSpace; }
+
+	std::string bagfileName() const
+	{ return m_expandedFilename; }
 private:
 	void run();
 
@@ -50,6 +53,8 @@ private:
 
 	std::string m_filename;
 	Naming m_namingMode;
+
+	std::string m_expandedFilename;
 
 	rosbag::Bag m_bag;
 	bool m_bagOpen{false};

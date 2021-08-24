@@ -8,9 +8,11 @@
 	<buildtool_depend>catkin</buildtool_depend>
 	<depend>boost</depend>
 	<depend>libncurses-dev</depend>
+    <depend>message_generation</depend>
 	<depend>rosbag_storage</depend>
 	<depend>roscpp</depend>
 	<depend>rosfmt</depend>
+    <depend>std_msgs</depend>
 	<depend>tf2_ros</depend>
 	<depend>topic_tools</depend>
 </package>

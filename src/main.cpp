@@ -10,6 +10,8 @@
 
 #include <std_srvs/Trigger.h>
 
+#include <rosbag_fancy/Status.h>
+
 #include "topic_manager.h"
 #include "message_queue.h"
 #include "bag_writer.h"
@@ -140,6 +142,38 @@ int record(const std::vector<std::string>& options)
 		writer.stop();
 		return true;
 	}));
+
+    // Status publisher
+    ros::Publisher pub_status = nh.advertise<Status>("status", 1);
+    ros::SteadyTimer timer_status = nh.createSteadyTimer(ros::WallDuration(0.5), boost::function<void(const ros::SteadyTimerEvent&)>([&](auto&){
+        StatusPtr msg = boost::make_shared<Status>();
+        msg->header.stamp = ros::Time::now();
+
+        msg->status = writer.running() ? Status::STATUS_RUNNING : Status::STATUS_PAUSED;
+
+        msg->bagfile = writer.bagfileName();
+
+        msg->bytes = writer.sizeInBytes();
+        msg->free_bytes = writer.freeSpace();
+        msg->bandwidth = 0;
+
+        for(auto& topic : topicManager.topics())
+        {
+            msg->topics.emplace_back();
+            auto& topicMsg = msg->topics.back();
+
+            msg->bandwidth += topic.bandwidth;
+
+            topicMsg.name = topic.name;
+            topicMsg.publishers = topic.numPublishers;
+            topicMsg.bandwidth = topic.bandwidth;
+            topicMsg.bytes = topic.totalBytes;
+            topicMsg.messages = topic.totalMessages;
+            topicMsg.rate = topic.messageRate;
+        }
+
+        pub_status.publish(msg);
+    }));
 
 	// Start recording if --paused is not given
 	if(vm.count("paused") == 0)

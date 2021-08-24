@@ -139,6 +139,8 @@ void BagWriter::start()
 		ROSFMT_INFO("Opening bag file: {}", filename.c_str());
 		m_bag.open(filename, rosbag::bagmode::Write);
 
+		m_expandedFilename = filename;
+
 		// Write all known transforms to /tf_static
 		{
 			auto tf_msg = boost::make_shared<tf2_msgs::TFMessage>();
