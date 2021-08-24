@@ -16,12 +16,17 @@ TopicSubscriber::TopicSubscriber(rosbag_fancy::TopicManager& topicManager, rosba
 
 	for(auto& topic : topicManager.topics())
 	{
+		ros::TransportHints transportHints;
+
+		if(topic.flags & static_cast<int>(Topic::Flag::UDP))
+			transportHints = transportHints.udp();
+
 		boost::function<void(const ros::MessageEvent<topic_tools::ShapeShifter const>&)> cb{
 			boost::bind(&TopicSubscriber::handle, this, boost::ref(topic), _1)
 		};
 		m_subscribers.push_back(nh.subscribe<topic_tools::ShapeShifter>(
 			topic.name, 10,
-			cb
+			cb, {}, transportHints
 		));
 	}
 

@@ -23,7 +23,7 @@ TopicManager::TopicManager()
 	);
 }
 
-void TopicManager::addTopic(const std::string& topic, float rateLimit)
+void TopicManager::addTopic(const std::string& topic, float rateLimit, int flags)
 {
 	std::string resolvedName = ros::names::resolve(topic);
 
@@ -40,7 +40,7 @@ void TopicManager::addTopic(const std::string& topic, float rateLimit)
 		return;
 	}
 
-	m_topics.emplace_back(resolvedName, rateLimit);
+	m_topics.emplace_back(resolvedName, rateLimit, flags);
 }
 
 void TopicManager::updateStatistics()

@@ -37,6 +37,7 @@ int record(const std::vector<std::string>& options)
 			("queue-size", po::value<std::uint64_t>()->default_value(500ULL*1024*1024), "Queue size in bytes")
 			("paused", "Start paused")
 			("no-ui", "Disable terminal UI")
+			("udp", "Subscribe using UDP transport")
 		;
 
 		po::positional_options_description p;
@@ -101,7 +102,11 @@ int record(const std::vector<std::string>& options)
 			}
 		}
 
-		topicManager.addTopic(name, rateLimit);
+		int flags = 0;
+		if(vm.count("udp"))
+			flags |= static_cast<int>(Topic::Flag::UDP);
+
+		topicManager.addTopic(name, rateLimit, flags);
 	}
 
 	MessageQueue queue{vm["queue-size"].as<std::uint64_t>()};

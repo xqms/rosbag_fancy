@@ -14,8 +14,13 @@ namespace rosbag_fancy
 
 struct Topic
 {
-	explicit Topic(const std::string& name, float rateLimit = 0.0f)
-	 : name(name), rateLimit(rateLimit)
+	enum class Flag
+	{
+		UDP = (1 << 0)
+	};
+
+	explicit Topic(const std::string& name, float rateLimit = 0.0f, int flags = 0)
+	 : name(name), rateLimit(rateLimit), flags(flags)
 	{
 	}
 
@@ -27,6 +32,7 @@ struct Topic
 
 	std::string name;
 	float rateLimit;
+	int flags;
 
 	// Status
 	ros::WallTime lastMessageTime;
@@ -97,7 +103,7 @@ public:
 	inline std::vector<Topic>& topics()
 	{ return m_topics; }
 
-	void addTopic(const std::string& topic, float rateLimit = 0.0f);
+	void addTopic(const std::string& topic, float rateLimit = 0.0f, int flags = 0);
 private:
 	void updateStatistics();
 
