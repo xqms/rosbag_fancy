@@ -135,11 +135,13 @@ int record(const std::vector<std::string>& options)
 	};
 
 	// Start/Stop service calls
-	ros::ServiceServer srv_start = nh.advertiseService("start", boost::function<bool(std_srvs::TriggerRequest&, std_srvs::TriggerResponse&)>(
-		std::bind(start)
-	));
-	ros::ServiceServer srv_stop = nh.advertiseService("stop", boost::function<bool(std_srvs::TriggerRequest&, std_srvs::TriggerResponse&)>([&](auto&, auto&){
+	ros::ServiceServer srv_start = nh.advertiseService("start", boost::function<bool(std_srvs::TriggerRequest&, std_srvs::TriggerResponse&)>([&](auto&, auto& resp){
+		resp.success = start();
+		return true;
+	}));
+	ros::ServiceServer srv_stop = nh.advertiseService("stop", boost::function<bool(std_srvs::TriggerRequest&, std_srvs::TriggerResponse&)>([&](auto&, auto& resp){
 		writer.stop();
+		resp.success = true;
 		return true;
 	}));
 
