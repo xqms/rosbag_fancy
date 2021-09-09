@@ -18,6 +18,8 @@
 namespace rosbag_fancy
 {
 
+struct Topic;
+
 class MessageQueue
 {
 public:
@@ -28,6 +30,8 @@ public:
 
 		uint64_t size() const
 		{ return message.getConstMessage()->size(); }
+
+		Topic* topicData;
 	};
 
 	explicit MessageQueue(uint64_t byteLimit);

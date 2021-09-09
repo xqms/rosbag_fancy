@@ -40,7 +40,7 @@ void TopicManager::addTopic(const std::string& topic, float rateLimit, int flags
 		return;
 	}
 
-	m_topics.emplace_back(resolvedName, rateLimit, flags);
+	m_topics.emplace_back(resolvedName, m_topics.size(), rateLimit, flags);
 }
 
 void TopicManager::updateStatistics()

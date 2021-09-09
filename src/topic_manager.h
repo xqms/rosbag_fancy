@@ -19,8 +19,9 @@ struct Topic
 		UDP = (1 << 0)
 	};
 
-	explicit Topic(const std::string& name, float rateLimit = 0.0f, int flags = 0)
+	explicit Topic(const std::string& name, std::size_t id, float rateLimit = 0.0f, int flags = 0)
 	 : name(name), rateLimit(rateLimit), flags(flags)
+	 , id(id)
 	{
 	}
 
@@ -33,6 +34,8 @@ struct Topic
 	std::string name;
 	float rateLimit;
 	int flags;
+
+	std::size_t id;
 
 	// Status
 	ros::WallTime lastMessageTime;
@@ -49,6 +52,7 @@ struct Topic
 	std::uint64_t dropCounter = 0;
 
 	std::uint64_t totalMessages = 0;
+	std::uint64_t totalMessagesInBag = 0;
 	std::uint64_t totalBytes = 0;
 
 	unsigned int numPublishers = 0;

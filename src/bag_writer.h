@@ -44,6 +44,9 @@ public:
 
 	std::string bagfileName() const
 	{ return m_expandedFilename; }
+
+	const std::vector<std::uint64_t>& messageCounts() const
+	{ return m_messageCounts; }
 private:
 	void run();
 
@@ -73,6 +76,8 @@ private:
 
 	tf2_ros::Buffer m_tf_buf;
 	boost::shared_ptr<std::map<std::string, std::string>> m_tf_header;
+
+	std::vector<std::uint64_t> m_messageCounts;
 };
 
 }

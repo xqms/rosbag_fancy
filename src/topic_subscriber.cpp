@@ -63,7 +63,7 @@ void TopicSubscriber::handle(Topic& topic, const ros::MessageEvent<topic_tools::
 
 	topic.notifyMessage(bytes);
 
-	if(!m_queue.push({topic.name, msg}))
+	if(!m_queue.push({topic.name, msg, &topic}))
 		topic.dropCounter++;
 }
 

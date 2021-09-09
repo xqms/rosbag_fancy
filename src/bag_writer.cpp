@@ -3,6 +3,7 @@
 
 #include "bag_writer.h"
 #include "message_queue.h"
+#include "topic_manager.h"
 
 #include <rosfmt/rosfmt.h>
 
@@ -84,6 +85,11 @@ void BagWriter::run()
 			{
 				m_bag.write(msg->topic, msg->message);
 				m_sizeInBytes = m_bag.getSize();
+
+				if(msg->topicData->id >= m_messageCounts.size())
+					m_messageCounts.resize(msg->topicData->id+1, 0);
+
+				m_messageCounts[msg->topicData->id]++;
 			}
 		}
 
@@ -106,6 +112,8 @@ void BagWriter::start()
 
 	if(m_running)
 		return;
+
+	m_messageCounts.clear();
 
 	std::string filename;
 	switch(m_namingMode)

@@ -153,7 +153,7 @@ int record(const std::vector<std::string>& options)
 
 	// Status publisher
 	ros::Publisher pub_status = nh.advertise<Status>("status", 1);
-	ros::SteadyTimer timer_status = nh.createSteadyTimer(ros::WallDuration(0.5), boost::function<void(const ros::SteadyTimerEvent&)>([&](auto&){
+	ros::SteadyTimer timer_status = nh.createSteadyTimer(ros::WallDuration(0.1), boost::function<void(const ros::SteadyTimerEvent&)>([&](auto&){
 		ros::WallTime now = ros::WallTime::now();
 
 		StatusPtr msg = boost::make_shared<Status>();
@@ -167,6 +167,8 @@ int record(const std::vector<std::string>& options)
 		msg->free_bytes = writer.freeSpace();
 		msg->bandwidth = 0;
 
+		auto& counts = writer.messageCounts();
+
 		for(auto& topic : topicManager.topics())
 		{
 			msg->topics.emplace_back();
@@ -179,6 +181,10 @@ int record(const std::vector<std::string>& options)
 			topicMsg.bandwidth = topic.bandwidth;
 			topicMsg.bytes = topic.totalBytes;
 			topicMsg.messages = topic.totalMessages;
+
+			if(topic.id < counts.size())
+				topicMsg.messages_in_current_bag = counts[topic.id];
+
 			topicMsg.rate = topic.messageRateAt(now);
 		}
 
