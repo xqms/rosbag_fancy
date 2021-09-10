@@ -15,4 +15,9 @@
     <depend>std_msgs</depend>
 	<depend>tf2_ros</depend>
 	<depend>topic_tools</depend>
+	<depend>rqt_gui</depend>
+	
+	<export>
+		<rqt_gui plugin="${prefix}/rqt_plugins.xml"/>
+	</export>
 </package>

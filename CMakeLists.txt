@@ -10,6 +10,8 @@ find_package(catkin REQUIRED COMPONENTS
 	std_msgs
 	topic_tools
 	tf2_ros
+	rqt_gui
+	qt_gui_cpp
 )
 
 add_message_files(FILES
@@ -66,3 +68,5 @@ catkin_add_env_hooks(50-rosbag_fancy
 install(TARGETS rosbag_fancy tf2_republisher
 	RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
+
+add_subdirectory(gui)
