@@ -1,13 +1,13 @@
 <library path="lib/librosbag_fancy_gui">
-	<class name="rosbagfancy" type="rosbag_fancy::FancyGui" base_class_type="rqt_gui_cpp::Plugin">
+	<class type="rosbag_fancy::FancyGui" base_class_type="rqt_gui_cpp::Plugin">
 		<description>
-			rosbag fancy gui
+			rosbag_fancy GUI
 		</description>
 		<qtgui>
-			<label>RosbagFancy</label>
-			<statustip>RosbagFancy</statustip>
+			<label>rosbag_fancy</label>
+			<statustip>GUI for rosbag_fancy</statustip>
 			<group>
-				<label>NimbRo</label>
+				<label>Logging</label>
 			</group>
 		</qtgui>
 	</class>

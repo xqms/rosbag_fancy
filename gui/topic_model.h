@@ -53,7 +53,7 @@ private:
 	QString rateToString(double rate) const;
 	QString memoryToString(uint64_t memory) const;
 	
-	std::vector<int> m_lastMsgCount;
+	std::vector<unsigned int> m_lastMsgCount;
 };
 
 }

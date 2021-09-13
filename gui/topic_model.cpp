@@ -79,22 +79,31 @@ QVariant TopicModel::data(const QModelIndex& index, int role) const
 	{
 		case Qt::ForegroundRole:
 			if(m_valid)
-				return QColor(Qt::black);
+			{
+				if(topic.publishers < 1 && col == Column::Publisher)
+					return QColor(Qt::white);
+				else
+					return QVariant{};
+			}
 			else
-				return QColor(Qt::black);
+				return QVariant{};
+
+			break;
 
 		case Qt::BackgroundRole:
 			if(m_valid)
 			{
-				if(active && col == Column::Activity)
+				if(active && col == Column::Activity && m_status->status == rosbag_fancy::Status::STATUS_RUNNING)
 					return QColor(Qt::green);
 				else if(topic.publishers < 1 && col == Column::Publisher)
 					return QColor(Qt::red);
 				else
-					return QColor(Qt::white);
+					return QVariant{};
 			}
 			else
 				return QColor(Qt::gray);
+
+			break;
 
 		case Qt::DisplayRole:
 			switch(col)
@@ -115,6 +124,17 @@ QVariant TopicModel::data(const QModelIndex& index, int role) const
 					return memoryToString(topic.bandwidth) + "/s";
 				default:
 					return QVariant();
+			}
+			break;
+
+		case Qt::TextAlignmentRole:
+			switch(col)
+			{
+				case Column::Name:
+					return int(Qt::AlignLeft | Qt::AlignVCenter);
+
+				default:
+					return int(Qt::AlignRight | Qt::AlignVCenter);
 			}
 			break;
 	}
@@ -187,11 +207,11 @@ QString TopicModel::rateToString(double rate) const
 {
 	std::string s;
 	if(rate < 1000.0)
-		s = fmt::format("{:5.1f}  Hz", rate);
+		s = fmt::format("{:.1f}  Hz", rate);
 	else if(rate < 1e6)
-		s = fmt::format("{:5.1f} kHz", rate / 1e3);
+		s = fmt::format("{:.1f} kHz", rate / 1e3);
 	else
-		s = fmt::format("{:5.1f} MHz", rate / 1e6);
+		s = fmt::format("{:.1f} MHz", rate / 1e6);
 	
 	return QString::fromStdString(s);
 }
@@ -213,4 +233,4 @@ QString TopicModel::memoryToString(uint64_t memory) const
 	return QString::fromStdString(s);
 }
 
-}//NS
+}

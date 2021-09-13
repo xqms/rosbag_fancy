@@ -1,4 +1,4 @@
-// Rosbag_fancy gui
+// rosbag_fancy GUI
 // Author: Christian Lenz <lenz@ais.uni-bonn.de>
 
 #include "fancy_gui.h"
@@ -9,9 +9,11 @@
 #include <ros/node_handle.h>
 #include <ros/service.h>
 #include <ros/master.h>
-#include <boost/foreach.hpp>
-
 #include <pluginlib/class_list_macros.h>
+
+#include <std_srvs/Trigger.h>
+
+#include <QMessageBox>
 
 Q_DECLARE_METATYPE(rosbag_fancy::StatusConstPtr)
 
@@ -31,10 +33,6 @@ void FancyGui::initPlugin(qt_gui_cpp::PluginContext& context)
 	m_w = new QWidget;
 	m_ui.setupUi(m_w);
 
-	context.addWidget(m_w);
-
-	ros::NodeHandle nh = getPrivateNodeHandle();
-
 	qRegisterMetaType<rosbag_fancy::StatusConstPtr>();
 	connect(this, &FancyGui::receivedStatus, &m_model, &TopicModel::setState, Qt::QueuedConnection);
 	connect(this, &FancyGui::receivedStatus, this, &FancyGui::updateView, Qt::QueuedConnection);
@@ -45,9 +43,13 @@ void FancyGui::initPlugin(qt_gui_cpp::PluginContext& context)
 	verticalHeader->setDefaultSectionSize(verticalHeader->fontMetrics().height()+2);
 	verticalHeader->hide();
 
-	QObject::connect(m_ui.prefixComboBox, SIGNAL(activated(QString)), SLOT(subscribe()));
-	QObject::connect(m_ui.refreshButton, SIGNAL(clicked(bool)), SLOT(refreshTopicList()));
+	connect(m_ui.prefixComboBox, QOverload<int>::of(&QComboBox::activated), this, &FancyGui::subscribe);
+	connect(m_ui.refreshButton, &QToolButton::clicked, this, &FancyGui::refreshTopicList);
 
+	connect(m_ui.startButton, &QPushButton::clicked, this, &FancyGui::start);
+	connect(m_ui.stopButton, &QPushButton::clicked, this, &FancyGui::stop);
+
+	context.addWidget(m_w);
 }
 
 void FancyGui::shutdownPlugin()
@@ -75,24 +77,27 @@ void FancyGui::restoreSettings(const qt_gui_cpp::Settings& plugin_settings, cons
 
 void FancyGui::refreshTopicList()
 {
-// 	if(m_shuttingDown)
-// 		return;
-
 	ros::master::V_TopicInfo topics;
 	ros::master::getTopics(topics);
 
 	m_ui.prefixComboBox->clear();
 
 	int idx = 0;
-	BOOST_FOREACH(const ros::master::TopicInfo topic, topics)
+	for(const ros::master::TopicInfo& topic : topics)
 	{
 		if(topic.datatype != "rosbag_fancy/Status")
 			continue;
 
-		std::string prefix = topic.name;
+		QString name = QString::fromStdString(topic.name);
 
-		m_ui.prefixComboBox->addItem(QString::fromStdString(prefix));
-		if(prefix == m_prefix)
+		// Strip /status suffix
+		if(name.endsWith("/status"))
+			name = name.left(name.length() - 7);
+		else
+			continue;
+
+		m_ui.prefixComboBox->addItem(name);
+		if(name.toStdString() == m_prefix)
 		{
 			m_ui.prefixComboBox->setCurrentIndex(idx);
 			subscribe();
@@ -104,11 +109,11 @@ void FancyGui::refreshTopicList()
 
 void FancyGui::subscribe()
 {
-	ros::NodeHandle nh = getPrivateNodeHandle();
+	ros::NodeHandle nh;
 	std::string prefix = m_ui.prefixComboBox->currentText().toStdString();
 	m_prefix = prefix;
 
-	m_sub_status = nh.subscribe(prefix, 1, &FancyGui::receivedStatus, this);
+	m_sub_status = nh.subscribe(prefix + "/status", 1, &FancyGui::receivedStatus, this);
 
 	m_w->setWindowTitle(QString::fromStdString(m_prefix));
 }
@@ -130,12 +135,21 @@ void FancyGui::updateView(const rosbag_fancy::StatusConstPtr& msg)
 	{
 		case rosbag_fancy::Status::STATUS_PAUSED:
 			m_ui.status->setText("PAUSED");
+			m_ui.status->setStyleSheet("color: white; background-color: red;");
+			m_ui.startButton->setEnabled(true);
+			m_ui.stopButton->setEnabled(false);
 			break;
 		case rosbag_fancy::Status::STATUS_RUNNING:
 			m_ui.status->setText("RUNNING");
+			m_ui.status->setStyleSheet("color: white; background-color: green;");
+			m_ui.startButton->setEnabled(false);
+			m_ui.stopButton->setEnabled(true);
 			break;
 		default:
 			m_ui.status->setText("UNKNOWN");
+			m_ui.status->setStyleSheet("");
+			m_ui.startButton->setEnabled(false);
+			m_ui.stopButton->setEnabled(false);
 			break;
 	}
 	
@@ -146,11 +160,11 @@ QString FancyGui::rateToString(double rate) const
 {
 	std::string s;
 	if(rate < 1000.0)
-		s = fmt::format("{:5.1f}  Hz", rate);
+		s = fmt::format("{:.1f} Hz", rate);
 	else if(rate < 1e6)
-		s = fmt::format("{:5.1f} kHz", rate / 1e3);
+		s = fmt::format("{:.1f} kHz", rate / 1e3);
 	else
-		s = fmt::format("{:5.1f} MHz", rate / 1e6);
+		s = fmt::format("{:.1f} MHz", rate / 1e6);
 	
 	return QString::fromStdString(s);
 }
@@ -159,7 +173,7 @@ QString FancyGui::memoryToString(uint64_t memory) const
 {
 	std::string s;
 	if(memory < static_cast<uint64_t>(1<<10))
-		s = fmt::format("{}.0   B", memory);
+		s = fmt::format("{}.0 B", memory);
 	else if(memory < static_cast<uint64_t>(1<<20))
 		s = fmt::format("{:.1f} KiB", static_cast<double>(memory) / static_cast<uint64_t>(1<<10));
 	else if(memory < static_cast<uint64_t>(1<<30))
@@ -172,6 +186,20 @@ QString FancyGui::memoryToString(uint64_t memory) const
 	return QString::fromStdString(s);
 }
 
-}//NS
+void FancyGui::start()
+{
+	std_srvs::Trigger srv;
+	if(!ros::service::call(m_prefix + "/start", srv))
+		QMessageBox::critical(m_w, "Error", "Could not call start service");
+}
+
+void FancyGui::stop()
+{
+	std_srvs::Trigger srv;
+	if(!ros::service::call(m_prefix + "/stop", srv))
+		QMessageBox::critical(m_w, "Error", "Could not call stop service");
+}
+
+}
 
 PLUGINLIB_EXPORT_CLASS(rosbag_fancy::FancyGui, rqt_gui_cpp::Plugin)

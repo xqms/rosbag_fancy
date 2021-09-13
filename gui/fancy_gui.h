@@ -35,6 +35,11 @@ public Q_SLOTS:
 	void refreshTopicList();
 	void subscribe();
 	void updateView(const rosbag_fancy::StatusConstPtr& msg);
+
+private Q_SLOTS:
+	void start();
+	void stop();
+
 private:
 	ros::Subscriber m_sub_status;
 
