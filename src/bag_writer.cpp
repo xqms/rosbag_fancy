@@ -288,15 +288,7 @@ void BagWriter::run_cleanup()
                 if ( m_shouldShutdown )
                         break;
                 //get current filename to prevent its deletion
-                std::string currentFileName = "";
-                {
-                        std::unique_lock<std::mutex> lock(m_mutex);
-                        if ( m_running )
-                        {
-                                currentFileName = m_bag.getFileName();
-                        }
-                }
-                fs::path currentPath = fs::path(currentFileName);
+                fs::path currentPath = fs::path(bagfileName());
 
                 if(m_directorySizeInBytes > m_deleteOldAtInBytes)
                 {
