@@ -42,6 +42,51 @@ namespace
 		else
 			return fmt::format("{:.1f} TiB", static_cast<double>(memory) / static_cast<uint64_t>(1ull<<40));
 	}
+
+	uint64_t stringToMemory(std::string human_readible_size)
+	{
+			if ( human_readible_size.empty() )
+					return 0;
+			// human_readible_size.erase(
+			//        std::remove_if(human_readible_size.begin(), human_readible_size.end(),
+			//                  [](unsigned char x){return std::isspace(x);}), human_readible_size.end()); // remove whitespaces, requires #include for <algorithm> and <cctype>
+
+
+			// format should be "10MB" or "xGB" or "10" or "10G"
+			const bool ends_with_byte = human_readible_size.back() == 'b' || human_readible_size.back() == 'B';
+			if ( ends_with_byte )
+					human_readible_size.pop_back(); // remove byte symbol
+			if ( human_readible_size.empty() )
+					return 0;
+
+			uint64_t unit_multiplier = 1ull;
+			const bool ends_with_unit = human_readible_size.back() > '9'; // check if ascii sign is larger than number
+			if ( ends_with_unit )
+			{
+					if ( human_readible_size.back() =='i' )
+							human_readible_size.pop_back(); // remove i from e.g. MiB
+					const char unit_prefix = human_readible_size.back();
+					human_readible_size.pop_back();
+					if ( unit_prefix == 'k' || unit_prefix == 'K' )
+					{
+							unit_multiplier = static_cast<uint64_t>(1ull<<10);
+					}
+					else if ( unit_prefix == 'm' || unit_prefix == 'M' )
+					{
+							unit_multiplier = static_cast<uint64_t>(1ull<<20);
+					}
+					else if ( unit_prefix == 'g' || unit_prefix == 'G' )
+					{
+							unit_multiplier = static_cast<uint64_t>(1ull<<30);
+					}
+					else if ( unit_prefix == 't' || unit_prefix == 'T' )
+					{
+							unit_multiplier = static_cast<uint64_t>(1ull<<40);
+					}
+			}
+			const uint64_t memory = std::stoll(human_readible_size);
+			return memory * unit_multiplier; // assumed in byte
+	}
 }
 
 int record(const std::vector<std::string>& options)
@@ -57,8 +102,8 @@ int record(const std::vector<std::string>& options)
 			("output,o", po::value<std::string>(), "Output bag file (overrides --prefix)")
 			("topic", po::value<std::vector<std::string>>()->required(), "Topics to record")
 			("queue-size", po::value<std::uint64_t>()->default_value(500ULL*1024*1024), "Queue size in bytes")
-			("directory-cleanup-size", po::value<std::uint64_t>(), "Clean up directory at given size in bytes")
-			("start-stop-bag-size", po::value<std::uint64_t>(), "Bag size for start-stop in bytes")
+                        ("delete-old-at", po::value<std::string>(), "Delete old bags at given size, e.g. 100GB or 1TB")
+                        ("split-bag-size", po::value<std::string>(), "Bag size for splitting, e.g. 1GB")
 			("paused", "Start paused")
 			("no-ui", "Disable terminal UI")
 			("udp", "Subscribe using UDP transport")
@@ -149,18 +194,24 @@ int record(const std::vector<std::string>& options)
 		namingMode = BagWriter::Naming::AppendTimestamp;
 	}
 
-	std::uint64_t startStopSizeInBytes = std::numeric_limits<std::uint64_t>::max();
-	if(vm.count("start-stop-bag-size"))
+        std::uint64_t splitBagSizeInBytes = std::numeric_limits<std::uint64_t>::max();
+        if(vm.count("split-bag-size"))
 	{
-		startStopSizeInBytes = vm["start-stop-bag-size"].as<std::uint64_t>();
-	}
-	std::uint64_t directoryCleanUpSizeInBytes = std::numeric_limits<std::uint64_t>::max();
-	if(vm.count("directory-cleanup-size"))
-	{
-		directoryCleanUpSizeInBytes = vm["directory-cleanup-size"].as<std::uint64_t>();
+                splitBagSizeInBytes = stringToMemory(vm["split-bag-size"].as<std::string>());
 	}
 
-	BagWriter writer{queue, bagName, namingMode, startStopSizeInBytes, directoryCleanUpSizeInBytes};
+        std::uint64_t deleteOldAtInBytes = std::numeric_limits<std::uint64_t>::max();
+        if(vm.count("delete-old-at"))
+	{
+                deleteOldAtInBytes = stringToMemory(vm["delete-old-at"].as<std::string>());
+                if ( splitBagSizeInBytes != std::numeric_limits<std::uint64_t>::max() && deleteOldAtInBytes < splitBagSizeInBytes )
+                {
+                    ROSFMT_WARN("Chosen split-bag-size is larger than delete-old-at size!");
+                }
+	}
+
+
+        BagWriter writer{queue, bagName, namingMode, splitBagSizeInBytes, deleteOldAtInBytes};
 
 	auto start = [&](){
 		try

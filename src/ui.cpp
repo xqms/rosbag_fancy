@@ -279,11 +279,11 @@ void UI::draw()
 		m_term.setStandardColors();
 	}
 	printLine(cnt, "Message queue: {:10} messages, {:>10}", m_queue.messagesInQueue(), memoryToString(m_queue.bytesInQueue()));
-	printLine(cnt, "Bag size: {:>10} ( start/stop: {:>10} ), directory size: {:>10} ( cleanup: {:>10} ), available space: {:>10}",
+        printLine(cnt, "Bag size: {:>10} ( split at: {:>10} ), directory size: {:>10} ( cleanup: {:>10} ), available space: {:>10}",
 		memoryToString(m_bagWriter.sizeInBytes()),
-		memoryToString(m_bagWriter.startStopSizeInBytes()),
+                memoryToString(m_bagWriter.splitSizeInBytes()),
 		memoryToString(m_bagWriter.directorySizeInBytes()),
-		memoryToString(m_bagWriter.directoryCleanUpSizeInBytes()),
+                memoryToString(m_bagWriter.deleteOldAtInBytes()),
 		memoryToString(m_bagWriter.freeSpace())
 	);
 

@@ -8,6 +8,7 @@
 #include <string>
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 
 #include <rosbag/bag.h>
 #include <ros/steady_timer.h>
@@ -30,7 +31,7 @@ public:
 
 	explicit BagWriter(
 		MessageQueue& queue, const std::string& filename, Naming namingMode,
-		std::uint64_t startStopSizeInBytes, std::uint64_t directoryCleanUpSizeInBytes
+                std::uint64_t splitSizeInBytes, std::uint64_t deleteOldAtInBytes
 	);
 	~BagWriter();
 
@@ -42,14 +43,14 @@ public:
 	std::uint64_t sizeInBytes() const
 	{ return m_sizeInBytes; }
 
-	std::uint64_t startStopSizeInBytes() const
-	{ return m_startStopSizeInBytes; }
+        std::uint64_t splitSizeInBytes() const
+        { return m_splitSizeInBytes; }
 
-	std::uint64_t directorySizeInBytes() const
-	{ return m_directorySizeInBytes; }
+        std::uint64_t directorySizeInBytes() const
+        { return m_directorySizeInBytes; }
 
-	std::uint64_t directoryCleanUpSizeInBytes() const
-	{ return m_directoryCleanUpSizeInBytes; }
+        std::uint64_t deleteOldAtInBytes() const
+        { return m_deleteOldAtInBytes; }
 
 	std::uint64_t freeSpace() const
 	{ return m_freeSpace; }
@@ -61,8 +62,10 @@ public:
 	{ return m_messageCounts; }
 private:
 	void run();
+        void run_cleanup();
 
 	void checkFreeSpace();
+        void checkOldBagSpace();
 
 	MessageQueue& m_queue;
 
@@ -72,14 +75,15 @@ private:
 	std::string m_expandedFilename;
 
 	bool m_isReopeningBag{false};
-	std::uint64_t m_startStopSizeInBytes = std::numeric_limits<std::uint64_t>::max();
-	std::uint64_t m_directoryCleanUpSizeInBytes = std::numeric_limits<std::uint64_t>::max();
+        std::uint64_t m_splitSizeInBytes = std::numeric_limits<std::uint64_t>::max();
+        std::uint64_t m_deleteOldAtInBytes = std::numeric_limits<std::uint64_t>::max();
 	std::atomic<std::uint64_t> m_directorySizeInBytes{0};
 
 	rosbag::Bag m_bag;
 	bool m_bagOpen{false};
 
 	std::thread m_thread;
+        std::thread m_cleanup_thread;
 
 	bool m_shouldShutdown{false};
 
@@ -87,9 +91,13 @@ private:
 	std::uint64_t m_freeSpace = 0;
 
 	ros::SteadyTimer m_freeSpaceTimer;
+        ros::SteadyTimer m_deleteOldBagTimer;
 
 	std::atomic<bool> m_running{false};
+        std::atomic<bool> m_cleanup_necessary{false};
 	std::mutex m_mutex;
+        std::mutex m_cleanup_mutex;
+        std::condition_variable m_cleanup_condition_variable;
 
 	tf2_ros::Buffer m_tf_buf;
 	boost::shared_ptr<std::map<std::string, std::string>> m_tf_header;
