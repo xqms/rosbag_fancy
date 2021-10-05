@@ -28,9 +28,10 @@ include_directories(${catkin_INCLUDE_DIRS})
 find_package(Curses REQUIRED)
 include_directories(${CURSES_INCLUDE_DIRS})
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 add_executable(rosbag_fancy
+	src/bag_reader.cpp
 	src/bag_writer.cpp
 	src/main.cpp
 	src/message_queue.cpp
@@ -56,12 +57,12 @@ target_link_libraries(tf2_republisher
 )
 
 # Shell helper
-# Version 1.7 (increment this comment to trigger a CMake update)
+# Version 1.9 (increment this comment to trigger a CMake update)
 catkin_add_env_hooks(50-rosbag_fancy
 	SHELLS bash
 	DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/env-hooks
 )
 
-install(TARGETS rosbag_fancy
+install(TARGETS rosbag_fancy tf2_republisher
 	RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
