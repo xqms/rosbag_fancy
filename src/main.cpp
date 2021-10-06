@@ -4,6 +4,7 @@
 #include <boost/program_options.hpp>
 
 #include <chrono>
+#include <regex>
 
 #include <ros/ros.h>
 #include <rosfmt/rosfmt.h>
@@ -43,49 +44,40 @@ namespace
 			return fmt::format("{:.1f} TiB", static_cast<double>(memory) / static_cast<uint64_t>(1ull<<40));
 	}
 
-	uint64_t stringToMemory(std::string human_readible_size)
+	uint64_t stringToMemory(std::string humanSize)
 	{
-			if ( human_readible_size.empty() )
-					return 0;
-			// human_readible_size.erase(
-			//        std::remove_if(human_readible_size.begin(), human_readible_size.end(),
-			//                  [](unsigned char x){return std::isspace(x);}), human_readible_size.end()); // remove whitespaces, requires #include for <algorithm> and <cctype>
+		// format should be "10MB" or "3 GB" or "10 B" or "10GiB"
+		static std::regex memoryRegex{R"EOS((\d+)\s*(K|M|G|T|E|)i?B?)EOS"};
 
+		std::smatch match;
+		if(!std::regex_match(humanSize, match, memoryRegex))
+		{
+			fmt::print(stderr, "Could not parse memory string '{}' - it should be something like '120B' or '10GB'\n",
+				humanSize
+			);
+			std::exit(1);
+		}
 
-			// format should be "10MB" or "xGB" or "10" or "10G"
-			const bool ends_with_byte = human_readible_size.back() == 'b' || human_readible_size.back() == 'B';
-			if ( ends_with_byte )
-					human_readible_size.pop_back(); // remove byte symbol
-			if ( human_readible_size.empty() )
-					return 0;
+		std::string number = match[1].str();
+		std::string unit = match[2].str();
 
-			uint64_t unit_multiplier = 1ull;
-			const bool ends_with_unit = human_readible_size.back() > '9'; // check if ascii sign is larger than number
-			if ( ends_with_unit )
+		std::uint64_t multiplier = [&]() -> std::uint64_t {
+			if(unit.empty())
+				return 1;
+
+			switch(unit[0])
 			{
-					if ( human_readible_size.back() =='i' )
-							human_readible_size.pop_back(); // remove i from e.g. MiB
-					const char unit_prefix = human_readible_size.back();
-					human_readible_size.pop_back();
-					if ( unit_prefix == 'k' || unit_prefix == 'K' )
-					{
-							unit_multiplier = static_cast<uint64_t>(1ull<<10);
-					}
-					else if ( unit_prefix == 'm' || unit_prefix == 'M' )
-					{
-							unit_multiplier = static_cast<uint64_t>(1ull<<20);
-					}
-					else if ( unit_prefix == 'g' || unit_prefix == 'G' )
-					{
-							unit_multiplier = static_cast<uint64_t>(1ull<<30);
-					}
-					else if ( unit_prefix == 't' || unit_prefix == 'T' )
-					{
-							unit_multiplier = static_cast<uint64_t>(1ull<<40);
-					}
+				case 'K': return 1ULL << 10;
+				case 'M': return 1ULL << 20;
+				case 'G': return 1ULL << 30;
+				case 'T': return 1ULL << 40;
+				case 'E': return 1ULL << 50;
 			}
-			const uint64_t memory = std::stoll(human_readible_size);
-			return memory * unit_multiplier; // assumed in byte
+
+			throw std::logic_error{"I got regexes wrong :("};
+		}();
+
+		return std::stoull(humanSize) * multiplier;
 	}
 }
 
@@ -99,11 +91,11 @@ int record(const std::vector<std::string>& options)
 		desc.add_options()
 			("help", "Display this help message")
 			("prefix,p", po::value<std::string>()->default_value("bag"), "Prefix for output bag file. The prefix is extended with a timestamp.")
-			("output,o", po::value<std::string>(), "Output bag file (overrides --prefix)")
+			("output,o", po::value<std::string>()->value_name("FILE"), "Output bag file (overrides --prefix)")
 			("topic", po::value<std::vector<std::string>>()->required(), "Topics to record")
-			("queue-size", po::value<std::uint64_t>()->default_value(500ULL*1024*1024), "Queue size in bytes")
-                        ("delete-old-at", po::value<std::string>(), "Delete old bags at given size, e.g. 100GB or 1TB")
-                        ("split-bag-size", po::value<std::string>(), "Bag size for splitting, e.g. 1GB")
+			("queue-size", po::value<std::string>()->value_name("SIZE")->default_value("500MB"), "Queue size")
+			("delete-old-at", po::value<std::string>()->value_name("SIZE"), "Delete old bags at given size, e.g. 100GB or 1TB")
+			("split-bag-size", po::value<std::string>()->value_name("SIZE"), "Bag size for splitting, e.g. 1GB")
 			("paused", "Start paused")
 			("no-ui", "Disable terminal UI")
 			("udp", "Subscribe using UDP transport")
@@ -178,7 +170,8 @@ int record(const std::vector<std::string>& options)
 		topicManager.addTopic(name, rateLimit, flags);
 	}
 
-	MessageQueue queue{vm["queue-size"].as<std::uint64_t>()};
+	std::uint64_t queueSize = stringToMemory(vm["queue-size"].as<std::string>());
+	MessageQueue queue{queueSize};
 
 	// Figure out the output file name
 	auto namingMode = BagWriter::Naming::Verbatim;
@@ -194,24 +187,24 @@ int record(const std::vector<std::string>& options)
 		namingMode = BagWriter::Naming::AppendTimestamp;
 	}
 
-        std::uint64_t splitBagSizeInBytes = std::numeric_limits<std::uint64_t>::max();
-        if(vm.count("split-bag-size"))
+	std::uint64_t splitBagSizeInBytes = 0;
+	if(vm.count("split-bag-size"))
 	{
-                splitBagSizeInBytes = stringToMemory(vm["split-bag-size"].as<std::string>());
+		splitBagSizeInBytes = stringToMemory(vm["split-bag-size"].as<std::string>());
 	}
 
-        std::uint64_t deleteOldAtInBytes = std::numeric_limits<std::uint64_t>::max();
-        if(vm.count("delete-old-at"))
+	std::uint64_t deleteOldAtInBytes = 0;
+	if(vm.count("delete-old-at"))
 	{
-                deleteOldAtInBytes = stringToMemory(vm["delete-old-at"].as<std::string>());
-                if ( splitBagSizeInBytes != std::numeric_limits<std::uint64_t>::max() && deleteOldAtInBytes < splitBagSizeInBytes )
-                {
-                    ROSFMT_WARN("Chosen split-bag-size is larger than delete-old-at size!");
-                }
+		deleteOldAtInBytes = stringToMemory(vm["delete-old-at"].as<std::string>());
+		if(splitBagSizeInBytes != 0 && deleteOldAtInBytes < splitBagSizeInBytes)
+		{
+			ROSFMT_WARN("Chosen split-bag-size is larger than delete-old-at size!");
+		}
 	}
 
 
-        BagWriter writer{queue, bagName, namingMode, splitBagSizeInBytes, deleteOldAtInBytes};
+	BagWriter writer{queue, bagName, namingMode, splitBagSizeInBytes, deleteOldAtInBytes};
 
 	auto start = [&](){
 		try

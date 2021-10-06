@@ -188,6 +188,7 @@ void UI::draw()
 	ros::WallTime now = ros::WallTime::now();
 
 	printLine(cnt, "");
+	printLine(cnt, "");
 
 	uint64_t totalMessages = 0;
 	uint64_t totalBytes = 0;
@@ -278,14 +279,37 @@ void UI::draw()
 		printLine(cnt, "Paused.");
 		m_term.setStandardColors();
 	}
-	printLine(cnt, "Message queue: {:10} messages, {:>10}", m_queue.messagesInQueue(), memoryToString(m_queue.bytesInQueue()));
-        printLine(cnt, "Bag size: {:>10} ( split at: {:>10} ), directory size: {:>10} ( cleanup: {:>10} ), available space: {:>10}",
-		memoryToString(m_bagWriter.sizeInBytes()),
-                memoryToString(m_bagWriter.splitSizeInBytes()),
-		memoryToString(m_bagWriter.directorySizeInBytes()),
-                memoryToString(m_bagWriter.deleteOldAtInBytes()),
-		memoryToString(m_bagWriter.freeSpace())
-	);
+	printLine(cnt, "Message queue:  {:10} messages, {:>10}", m_queue.messagesInQueue(), memoryToString(m_queue.bytesInQueue()));
+
+	if(m_bagWriter.splitSizeInBytes() != 0)
+	{
+		printLine(cnt, "Bag size:       {:>10} / {:>10} split size / {:>10} available",
+			memoryToString(m_bagWriter.sizeInBytes()),
+			memoryToString(m_bagWriter.splitSizeInBytes()),
+			memoryToString(m_bagWriter.freeSpace())
+		);
+	}
+	else
+	{
+		printLine(cnt, "Bag size:       {:>10} / {:>10} available",
+			memoryToString(m_bagWriter.sizeInBytes()),
+			memoryToString(m_bagWriter.freeSpace())
+		);
+	}
+
+	if(m_bagWriter.deleteOldAtInBytes() != 0)
+	{
+		printLine(cnt, "Directory size: {:>10} / {:>10}",
+			memoryToString(m_bagWriter.directorySizeInBytes()),
+			memoryToString(m_bagWriter.deleteOldAtInBytes())
+		);
+	}
+	else
+	{
+		printLine(cnt, "Directory size: {:>10}",
+			memoryToString(m_bagWriter.directorySizeInBytes())
+		);
+	}
 
 	g_statusLines = cnt;
 

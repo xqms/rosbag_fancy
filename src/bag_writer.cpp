@@ -96,10 +96,6 @@ BagWriter::BagWriter(rosbag_fancy::MessageQueue& queue, const std::string& filen
 		boost::bind(&BagWriter::checkFreeSpace, this)
 	);
 	checkFreeSpace();
-        m_deleteOldBagTimer = nh.createSteadyTimer(ros::WallDuration(5.0),
-                boost::bind(&BagWriter::checkOldBagSpace, this)
-        );
-        checkOldBagSpace();
 
 	m_tf_header = boost::make_shared<std::map<std::string, std::string>>();
 	{
@@ -113,16 +109,22 @@ BagWriter::BagWriter(rosbag_fancy::MessageQueue& queue, const std::string& filen
 	}
 
 	m_thread = std::thread{std::bind(&BagWriter::run, this)};
-        m_cleanup_thread = std::thread{std::bind(&BagWriter::run_cleanup, this)};
+
+	if(m_deleteOldAtInBytes != 0)
+		m_cleanup_thread = std::thread{std::bind(&BagWriter::cleanupThread, this)};
 }
 
 BagWriter::~BagWriter()
 {
 	m_shouldShutdown = true;
 	m_queue.shutdown();
-        m_cleanup_condition_variable.notify_one();
 	m_thread.join();
-        m_cleanup_thread.join();
+
+	if(m_deleteOldAtInBytes != 0)
+	{
+		m_cleanupCondition.notify_one();
+		m_cleanup_thread.join();
+	}
 }
 
 void BagWriter::run()
@@ -156,7 +158,7 @@ void BagWriter::run()
 			}
 		}
 
-                if(m_sizeInBytes >= m_splitSizeInBytes)
+		if(m_splitSizeInBytes != 0 && m_sizeInBytes >= m_splitSizeInBytes)
 		{
 			m_isReopeningBag = true;
 			stop();
@@ -188,7 +190,7 @@ void BagWriter::start()
 
 	if(!m_bagOpen)
 	{
-                // Don't overwrite existing files
+		// Don't overwrite existing files
 		if(fs::exists(filename))
 		{
 			auto replacement = getNewFilename(filename);
@@ -203,6 +205,10 @@ void BagWriter::start()
 
 			filename = replacement;
 		}
+
+		// We need to hold the cleanup mutex here to make sure the cleanup thread
+		// is aware of the current bag file name.
+		std::unique_lock<std::mutex> lock(m_cleanupMutex);
 
 		ROSFMT_INFO("Opening bag file: {}", filename.c_str());
 		m_bag.open(filename, rosbag::bagmode::Write);
@@ -264,57 +270,62 @@ void BagWriter::checkFreeSpace()
 	m_freeSpace = space.available;
 }
 
-void BagWriter::checkOldBagSpace()
+void BagWriter::cleanupThread()
 {
-        namespace fs = boost::filesystem;
-        std::vector<fs::path> bagFiles = getBagFilesInCurrentFolder(m_filename);
-        m_directorySizeInBytes = getTotalSizeInBytes(bagFiles);
+	namespace fs = boost::filesystem;
 
-        if(m_directorySizeInBytes > m_deleteOldAtInBytes)
-        {
-                std::unique_lock<std::mutex> lock(m_cleanup_mutex);
-                m_cleanup_necessary = true;
-                m_cleanup_condition_variable.notify_one();
-        }
-}
+	using namespace std::literals;
 
-void BagWriter::run_cleanup()
-{
-        namespace fs = boost::filesystem;
-        while(!m_shouldShutdown)
-        {
-                std::unique_lock<std::mutex> lock(m_cleanup_mutex);
-                m_cleanup_condition_variable.wait(lock, [&]{ return m_cleanup_necessary || m_shouldShutdown;});
-                if ( m_shouldShutdown )
-                        break;
-                //get current filename to prevent its deletion
-                fs::path currentPath = fs::path(bagfileName());
+	while(!m_shouldShutdown)
+	{
+		std::vector<fs::path> bagFiles = getBagFilesInCurrentFolder(m_filename);
+		m_directorySizeInBytes = getTotalSizeInBytes(bagFiles);
 
-                if(m_directorySizeInBytes > m_deleteOldAtInBytes)
-                {
-                        std::vector<fs::path> bagFiles = getBagFilesInCurrentFolder(m_filename);
-                        std::vector<fs::path> timeSortedBagFiles = sortFilesByTime (bagFiles);
+		if(m_deleteOldAtInBytes != 0 && m_directorySizeInBytes > m_deleteOldAtInBytes)
+		{
+			std::unique_lock<std::mutex> lock(m_cleanupMutex);
 
-                        // explicit new computation, since there might have been some changes in the mean time.
-                        std::uint64_t directorySizeInBytes = getTotalSizeInBytes(bagFiles);
-                        for(auto& entry : timeSortedBagFiles)
-                        {
-                                // do not delete current one !
-                                if ( fs::equivalent(entry, currentPath) )
-                                        continue;
-                                std::uint64_t bagSize = fs::file_size(entry);
-                                directorySizeInBytes -= bagSize;
-                                bool smallEnough = directorySizeInBytes < m_deleteOldAtInBytes;
+			// explicit new computation, since there might have been some changes in the mean time.
+			// Here we are protected by the mutex, so filename change can happen in the meantime.
+			std::vector<fs::path> bagFiles = getBagFilesInCurrentFolder(m_filename);
+			std::uint64_t directorySizeInBytes = getTotalSizeInBytes(bagFiles);
+			std::vector<fs::path> timeSortedBagFiles = sortFilesByTime(bagFiles);
 
-                                ROSFMT_INFO("Bag directory requires too much space. Removing old bag file: {}", entry.c_str());
-                                fs::remove(entry);
+			fs::path currentPath = fs::path(bagfileName());
 
-                                if(smallEnough)
-                                        break;
-                        }
-                }
-                m_cleanup_necessary = false;
-        }
+			for(auto& entry : timeSortedBagFiles)
+			{
+				// do not delete current one!
+				if(fs::equivalent(entry, currentPath))
+					continue;
+
+				std::uint64_t bagSize = fs::file_size(entry);
+
+				ROSFMT_INFO("Bag directory requires too much space. Removing old bag file: {}", entry.c_str());
+				fs::remove(entry);
+
+				directorySizeInBytes -= bagSize;
+
+				// Already finished?
+				if(directorySizeInBytes < m_deleteOldAtInBytes)
+					break;
+			}
+
+			if(directorySizeInBytes > m_deleteOldAtInBytes)
+			{
+				ROSFMT_WARN("I could not remove enough bag files to make the bag file directory small enough.");
+			}
+
+			m_directorySizeInBytes = directorySizeInBytes;
+		}
+
+		// Sleep for defined time, but exit when requested
+		std::unique_lock<std::mutex> lock(m_cleanupMutex);
+		m_cleanupCondition.wait_for(lock, 5s, [&]{ return m_shouldShutdown; });
+
+		if(m_shouldShutdown)
+			break;
+	}
 }
 
 }
