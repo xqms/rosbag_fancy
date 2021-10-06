@@ -281,6 +281,17 @@ void UI::draw()
 	}
 	printLine(cnt, "Message queue:  {:10} messages, {:>10}", m_queue.messagesInQueue(), memoryToString(m_queue.bytesInQueue()));
 
+	printLine(cnt, "Compression:    {:>10}", [&](){
+		switch(m_bagWriter.compression())
+		{
+			case rosbag::compression::Uncompressed: return "None";
+			case rosbag::compression::BZ2:          return "BZ2";
+			case rosbag::compression::LZ4:          return "LZ4";
+		}
+
+		return "Unknown";
+	}());
+
 	if(m_bagWriter.splitSizeInBytes() != 0)
 	{
 		printLine(cnt, "Bag size:       {:>10} / {:>10} split size / {:>10} available",

@@ -212,6 +212,7 @@ void BagWriter::start()
 
 		ROSFMT_INFO("Opening bag file: {}", filename.c_str());
 		m_bag.open(filename, rosbag::bagmode::Write);
+		m_bag.setCompression(m_compressionType);
 
 		m_expandedFilename = filename;
 
@@ -326,6 +327,13 @@ void BagWriter::cleanupThread()
 		if(m_shouldShutdown)
 			break;
 	}
+}
+
+void BagWriter::setCompression(rosbag::compression::CompressionType type)
+{
+	std::unique_lock<std::mutex> lock{m_mutex};
+	m_compressionType = type;
+	m_bag.setCompression(type);
 }
 
 }

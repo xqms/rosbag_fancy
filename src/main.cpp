@@ -99,6 +99,8 @@ int record(const std::vector<std::string>& options)
 			("paused", "Start paused")
 			("no-ui", "Disable terminal UI")
 			("udp", "Subscribe using UDP transport")
+			("bz2", "Enable BZ2 compression")
+			("lz4", "Enable LZ2 compression")
 		;
 
 		po::positional_options_description p;
@@ -205,6 +207,17 @@ int record(const std::vector<std::string>& options)
 
 
 	BagWriter writer{queue, bagName, namingMode, splitBagSizeInBytes, deleteOldAtInBytes};
+
+	if(vm.count("bz2") && vm.count("lz4"))
+	{
+		fmt::print(stderr, "Options --bz2 and --lz4 are mutually exclusive\n");
+		return 1;
+	}
+
+	if(vm.count("bz2"))
+		writer.setCompression(rosbag::compression::BZ2);
+	if(vm.count("lz4"))
+		writer.setCompression(rosbag::compression::LZ4);
 
 	auto start = [&](){
 		try
