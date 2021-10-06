@@ -6,7 +6,7 @@ find_package(catkin REQUIRED COMPONENTS
 	rosbag_fancy_msgs
 	rosfmt
 	rqt_gui
-	qt_gui_cpp
+	rqt_gui_cpp
 )
 
 catkin_package()

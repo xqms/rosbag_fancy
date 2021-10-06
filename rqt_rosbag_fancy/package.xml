@@ -8,10 +8,10 @@
 	<maintainer email="max.schwarz@ais.uni-bonn.de">Max Schwarz</maintainer>
 
 	<buildtool_depend>catkin</buildtool_depend>
-	<depend>qt_gui_cpp</depend>
 	<depend>rosbag_fancy_msgs</depend>
 	<depend>rosfmt</depend>
 	<depend>rqt_gui</depend>
+	<depend>rqt_gui_cpp</depend>
 
 	<build_depend>qtbase5-dev</build_depend>
 
