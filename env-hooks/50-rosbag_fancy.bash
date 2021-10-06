@@ -11,7 +11,7 @@ function _rosbag_fancy() {
 	local cmd="${COMP_WORDS[1]}"
 
 	if [[ "$COMP_CWORD" == "1" ]]; then
-		COMPREPLY=( $(compgen -W "record --help") )
+		COMPREPLY=( $(compgen -W "record info --help" -- $cur) )
 		return
 	fi
 
@@ -39,6 +39,9 @@ function _rosbag_fancy() {
 
 			COMPREPLY=( $(compgen -o nospace -W "${FLAGS[*]} ${OPTS[*]} $(rostopic list 2>/dev/null)" -- $cur) )
 			compopt -o nospace
+			;;
+		info)
+			COMPREPLY=( $(compgen -f -- $cur ) )
 			;;
 	esac
 }
