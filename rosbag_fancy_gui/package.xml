@@ -13,6 +13,8 @@
 	<depend>rosfmt</depend>
 	<depend>rqt_gui</depend>
 
+	<build_depend>qtbase5-dev</build_depend>
+
 	<export>
 		<rqt_gui plugin="${prefix}/rqt_plugins.xml"/>
 	</export>
