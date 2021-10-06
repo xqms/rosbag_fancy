@@ -5,7 +5,7 @@
 
 #include "topic_model.h"
 
-#include <rosfmt/full.h>
+#include <rosfmt/rosfmt.h>
 #include <ros/node_handle.h>
 #include <ros/service.h>
 #include <ros/master.h>

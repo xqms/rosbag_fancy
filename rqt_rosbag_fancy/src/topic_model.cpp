@@ -5,7 +5,7 @@
 
 #include <QColor>
 #include <QTimer>
-#include <rosfmt/full.h>
+#include <rosfmt/rosfmt.h>
 
 namespace rqt_rosbag_fancy
 {
