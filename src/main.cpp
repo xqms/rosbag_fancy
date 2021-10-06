@@ -4,6 +4,7 @@
 #include <boost/program_options.hpp>
 
 #include <chrono>
+#include <regex>
 
 #include <ros/ros.h>
 #include <rosfmt/rosfmt.h>
@@ -42,6 +43,42 @@ namespace
 		else
 			return fmt::format("{:.1f} TiB", static_cast<double>(memory) / static_cast<uint64_t>(1ull<<40));
 	}
+
+	uint64_t stringToMemory(std::string humanSize)
+	{
+		// format should be "10MB" or "3 GB" or "10 B" or "10GiB"
+		static std::regex memoryRegex{R"EOS((\d+)\s*(K|M|G|T|E|)i?B?)EOS"};
+
+		std::smatch match;
+		if(!std::regex_match(humanSize, match, memoryRegex))
+		{
+			fmt::print(stderr, "Could not parse memory string '{}' - it should be something like '120B' or '10GB'\n",
+				humanSize
+			);
+			std::exit(1);
+		}
+
+		std::string number = match[1].str();
+		std::string unit = match[2].str();
+
+		std::uint64_t multiplier = [&]() -> std::uint64_t {
+			if(unit.empty())
+				return 1;
+
+			switch(unit[0])
+			{
+				case 'K': return 1ULL << 10;
+				case 'M': return 1ULL << 20;
+				case 'G': return 1ULL << 30;
+				case 'T': return 1ULL << 40;
+				case 'E': return 1ULL << 50;
+			}
+
+			throw std::logic_error{"I got regexes wrong :("};
+		}();
+
+		return std::stoull(humanSize) * multiplier;
+	}
 }
 
 int record(const std::vector<std::string>& options)
@@ -54,9 +91,11 @@ int record(const std::vector<std::string>& options)
 		desc.add_options()
 			("help", "Display this help message")
 			("prefix,p", po::value<std::string>()->default_value("bag"), "Prefix for output bag file. The prefix is extended with a timestamp.")
-			("output,o", po::value<std::string>(), "Output bag file (overrides --prefix)")
+			("output,o", po::value<std::string>()->value_name("FILE"), "Output bag file (overrides --prefix)")
 			("topic", po::value<std::vector<std::string>>()->required(), "Topics to record")
-			("queue-size", po::value<std::uint64_t>()->default_value(500ULL*1024*1024), "Queue size in bytes")
+			("queue-size", po::value<std::string>()->value_name("SIZE")->default_value("500MB"), "Queue size")
+			("delete-old-at", po::value<std::string>()->value_name("SIZE"), "Delete old bags at given size, e.g. 100GB or 1TB")
+			("split-bag-size", po::value<std::string>()->value_name("SIZE"), "Bag size for splitting, e.g. 1GB")
 			("paused", "Start paused")
 			("no-ui", "Disable terminal UI")
 			("udp", "Subscribe using UDP transport")
@@ -131,7 +170,8 @@ int record(const std::vector<std::string>& options)
 		topicManager.addTopic(name, rateLimit, flags);
 	}
 
-	MessageQueue queue{vm["queue-size"].as<std::uint64_t>()};
+	std::uint64_t queueSize = stringToMemory(vm["queue-size"].as<std::string>());
+	MessageQueue queue{queueSize};
 
 	// Figure out the output file name
 	auto namingMode = BagWriter::Naming::Verbatim;
@@ -147,7 +187,24 @@ int record(const std::vector<std::string>& options)
 		namingMode = BagWriter::Naming::AppendTimestamp;
 	}
 
-	BagWriter writer{queue, bagName, namingMode};
+	std::uint64_t splitBagSizeInBytes = 0;
+	if(vm.count("split-bag-size"))
+	{
+		splitBagSizeInBytes = stringToMemory(vm["split-bag-size"].as<std::string>());
+	}
+
+	std::uint64_t deleteOldAtInBytes = 0;
+	if(vm.count("delete-old-at"))
+	{
+		deleteOldAtInBytes = stringToMemory(vm["delete-old-at"].as<std::string>());
+		if(splitBagSizeInBytes != 0 && deleteOldAtInBytes < splitBagSizeInBytes)
+		{
+			ROSFMT_WARN("Chosen split-bag-size is larger than delete-old-at size!");
+		}
+	}
+
+
+	BagWriter writer{queue, bagName, namingMode, splitBagSizeInBytes, deleteOldAtInBytes};
 
 	auto start = [&](){
 		try

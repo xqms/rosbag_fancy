@@ -8,6 +8,8 @@
 #include <rosfmt/rosfmt.h>
 
 #include <boost/filesystem.hpp>
+#include <boost/range/iterator_range.hpp>
+#include <map>
 
 #include <ros/node_handle.h>
 
@@ -39,12 +41,55 @@ namespace
 
 		return {};
 	}
+
+	std::vector<fs::path> getBagFilesInCurrentFolder(const std::string& filename)
+	{
+		std::vector<fs::path> bagFiles;
+		auto path = fs::absolute(fs::path(filename)).parent_path();
+
+		for(auto& entry : boost::make_iterator_range(fs::directory_iterator(path), {}))
+		{
+			auto filePath = entry.path();
+			if(fs::extension(filePath) == ".bag")
+			{
+				bagFiles.emplace_back(filePath);
+			}
+		}
+
+		return bagFiles;
+	}
+
+	std::vector<fs::path> sortFilesByTime(const std::vector<fs::path>& files)
+	{
+		std::multimap<std::time_t,fs::path> timeFiles;
+		for(auto & entry : files)
+		{
+			timeFiles.emplace(fs::last_write_time(entry),entry);
+		}
+
+		std::vector<fs::path> timeSortedFiles;
+		if(!timeFiles.empty())
+			std::transform(timeFiles.begin(), timeFiles.end(), std::back_inserter(timeSortedFiles), [](auto &kv){ return kv.second;});
+
+		return timeSortedFiles;
+	}
+
+	std::uint64_t getTotalSizeInBytes(const std::vector<fs::path>& files)
+	{
+		std::uint64_t totalSizeInBytes = 0;
+		for(auto& entry : files)
+			totalSizeInBytes += fs::file_size(entry);
+
+		return totalSizeInBytes;
+	}
 }
 
-BagWriter::BagWriter(rosbag_fancy::MessageQueue& queue, const std::string& filename, Naming namingMode)
+BagWriter::BagWriter(rosbag_fancy::MessageQueue& queue, const std::string& filename, Naming namingMode, std::uint64_t splitSizeInBytes, std::uint64_t deleteOldAtInBytes)
  : m_queue{queue}
  , m_filename{filename}
  , m_namingMode{namingMode}
+ , m_splitSizeInBytes{splitSizeInBytes}
+ , m_deleteOldAtInBytes{deleteOldAtInBytes}
 {
 	ros::NodeHandle nh;
 	m_freeSpaceTimer = nh.createSteadyTimer(ros::WallDuration(5.0),
@@ -64,6 +109,9 @@ BagWriter::BagWriter(rosbag_fancy::MessageQueue& queue, const std::string& filen
 	}
 
 	m_thread = std::thread{std::bind(&BagWriter::run, this)};
+
+	if(m_deleteOldAtInBytes != 0)
+		m_cleanup_thread = std::thread{std::bind(&BagWriter::cleanupThread, this)};
 }
 
 BagWriter::~BagWriter()
@@ -71,6 +119,12 @@ BagWriter::~BagWriter()
 	m_shouldShutdown = true;
 	m_queue.shutdown();
 	m_thread.join();
+
+	if(m_deleteOldAtInBytes != 0)
+	{
+		m_cleanupCondition.notify_one();
+		m_cleanup_thread.join();
+	}
 }
 
 void BagWriter::run()
@@ -102,6 +156,14 @@ void BagWriter::run()
 				for(auto& transformMsg : tf_msg->transforms)
 					m_tf_buf.setTransform(transformMsg, "bag", true);
 			}
+		}
+
+		if(m_splitSizeInBytes != 0 && m_sizeInBytes >= m_splitSizeInBytes)
+		{
+			m_isReopeningBag = true;
+			stop();
+			start();
+			m_isReopeningBag = false;
 		}
 	}
 }
@@ -143,6 +205,10 @@ void BagWriter::start()
 
 			filename = replacement;
 		}
+
+		// We need to hold the cleanup mutex here to make sure the cleanup thread
+		// is aware of the current bag file name.
+		std::unique_lock<std::mutex> lock(m_cleanupMutex);
 
 		ROSFMT_INFO("Opening bag file: {}", filename.c_str());
 		m_bag.open(filename, rosbag::bagmode::Write);
@@ -198,9 +264,68 @@ void BagWriter::checkFreeSpace()
 {
 	namespace fs = boost::filesystem;
 
-	auto space = fs::space(fs::absolute(fs::path(m_filename)).parent_path());
+	auto path = fs::absolute(fs::path(m_filename)).parent_path();
+	auto space = fs::space(path);
 
 	m_freeSpace = space.available;
+}
+
+void BagWriter::cleanupThread()
+{
+	namespace fs = boost::filesystem;
+
+	using namespace std::literals;
+
+	while(!m_shouldShutdown)
+	{
+		std::vector<fs::path> bagFiles = getBagFilesInCurrentFolder(m_filename);
+		m_directorySizeInBytes = getTotalSizeInBytes(bagFiles);
+
+		if(m_deleteOldAtInBytes != 0 && m_directorySizeInBytes > m_deleteOldAtInBytes)
+		{
+			std::unique_lock<std::mutex> lock(m_cleanupMutex);
+
+			// explicit new computation, since there might have been some changes in the mean time.
+			// Here we are protected by the mutex, so filename change can happen in the meantime.
+			std::vector<fs::path> bagFiles = getBagFilesInCurrentFolder(m_filename);
+			std::uint64_t directorySizeInBytes = getTotalSizeInBytes(bagFiles);
+			std::vector<fs::path> timeSortedBagFiles = sortFilesByTime(bagFiles);
+
+			fs::path currentPath = fs::path(bagfileName());
+
+			for(auto& entry : timeSortedBagFiles)
+			{
+				// do not delete current one!
+				if(fs::equivalent(entry, currentPath))
+					continue;
+
+				std::uint64_t bagSize = fs::file_size(entry);
+
+				ROSFMT_INFO("Bag directory requires too much space. Removing old bag file: {}", entry.c_str());
+				fs::remove(entry);
+
+				directorySizeInBytes -= bagSize;
+
+				// Already finished?
+				if(directorySizeInBytes < m_deleteOldAtInBytes)
+					break;
+			}
+
+			if(directorySizeInBytes > m_deleteOldAtInBytes)
+			{
+				ROSFMT_WARN("I could not remove enough bag files to make the bag file directory small enough.");
+			}
+
+			m_directorySizeInBytes = directorySizeInBytes;
+		}
+
+		// Sleep for defined time, but exit when requested
+		std::unique_lock<std::mutex> lock(m_cleanupMutex);
+		m_cleanupCondition.wait_for(lock, 5s, [&]{ return m_shouldShutdown; });
+
+		if(m_shouldShutdown)
+			break;
+	}
 }
 
 }
