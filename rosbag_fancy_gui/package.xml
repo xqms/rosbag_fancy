@@ -1,0 +1,19 @@
+<package format="3">
+	<name>rosbag_fancy_gui</name>
+	<description>rqt GUI for rosbag_fancy</description>
+	<version>0.2.0</version>
+	<license>BSD</license>
+
+	<author email="lenz@ais.uni-bonn.de">Christian Lenz</author>
+	<maintainer email="max.schwarz@ais.uni-bonn.de">Max Schwarz</maintainer>
+
+	<buildtool_depend>catkin</buildtool_depend>
+	<depend>qt_gui_cpp</depend>
+	<depend>rosbag_fancy_msgs</depend>
+	<depend>rosfmt</depend>
+	<depend>rqt_gui</depend>
+
+	<export>
+		<rqt_gui plugin="${prefix}/rqt_plugins.xml"/>
+	</export>
+</package>

@@ -15,9 +15,9 @@
 
 #include <QMessageBox>
 
-Q_DECLARE_METATYPE(rosbag_fancy::StatusConstPtr)
+Q_DECLARE_METATYPE(rosbag_fancy_msgs::StatusConstPtr)
 
-namespace rosbag_fancy
+namespace rosbag_fancy_gui
 {
 
 FancyGui::FancyGui()
@@ -33,7 +33,7 @@ void FancyGui::initPlugin(qt_gui_cpp::PluginContext& context)
 	m_w = new QWidget;
 	m_ui.setupUi(m_w);
 
-	qRegisterMetaType<rosbag_fancy::StatusConstPtr>();
+	qRegisterMetaType<rosbag_fancy_msgs::StatusConstPtr>();
 	connect(this, &FancyGui::receivedStatus, &m_model, &TopicModel::setState, Qt::QueuedConnection);
 	connect(this, &FancyGui::receivedStatus, this, &FancyGui::updateView, Qt::QueuedConnection);
 
@@ -85,7 +85,7 @@ void FancyGui::refreshTopicList()
 	int idx = 0;
 	for(const ros::master::TopicInfo& topic : topics)
 	{
-		if(topic.datatype != "rosbag_fancy/Status")
+		if(topic.datatype != "rosbag_fancy_msgs/Status")
 			continue;
 
 		QString name = QString::fromStdString(topic.name);
@@ -118,7 +118,7 @@ void FancyGui::subscribe()
 	m_w->setWindowTitle(QString::fromStdString(m_prefix));
 }
 
-void FancyGui::updateView(const rosbag_fancy::StatusConstPtr& msg)
+void FancyGui::updateView(const rosbag_fancy_msgs::StatusConstPtr& msg)
 {
 	m_ui.file_name->setText(QString::fromStdString(msg->bagfile));
 	m_ui.bandwidth->setText(memoryToString(msg->bandwidth) + "/s");
@@ -133,13 +133,13 @@ void FancyGui::updateView(const rosbag_fancy::StatusConstPtr& msg)
 
 	switch(msg->status)
 	{
-		case rosbag_fancy::Status::STATUS_PAUSED:
+		case rosbag_fancy_msgs::Status::STATUS_PAUSED:
 			m_ui.status->setText("PAUSED");
 			m_ui.status->setStyleSheet("color: white; background-color: red;");
 			m_ui.startButton->setEnabled(true);
 			m_ui.stopButton->setEnabled(false);
 			break;
-		case rosbag_fancy::Status::STATUS_RUNNING:
+		case rosbag_fancy_msgs::Status::STATUS_RUNNING:
 			m_ui.status->setText("RUNNING");
 			m_ui.status->setStyleSheet("color: white; background-color: green;");
 			m_ui.startButton->setEnabled(false);
@@ -202,4 +202,4 @@ void FancyGui::stop()
 
 }
 
-PLUGINLIB_EXPORT_CLASS(rosbag_fancy::FancyGui, rqt_gui_cpp::Plugin)
+PLUGINLIB_EXPORT_CLASS(rosbag_fancy_gui::FancyGui, rqt_gui_cpp::Plugin)

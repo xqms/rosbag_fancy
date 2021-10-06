@@ -3,24 +3,12 @@ cmake_minimum_required(VERSION 3.0)
 project(rosbag_fancy)
 
 find_package(catkin REQUIRED COMPONENTS
-	message_generation
+	rosbag_fancy_msgs
 	rosbag_storage
 	roscpp
 	rosfmt
-	std_msgs
 	topic_tools
 	tf2_ros
-	rqt_gui
-	qt_gui_cpp
-)
-
-add_message_files(FILES
-    Status.msg
-    TopicStatus.msg
-)
-
-generate_messages(DEPENDENCIES
-    std_msgs
 )
 
 catkin_package()
@@ -41,9 +29,6 @@ add_executable(rosbag_fancy
 	src/topic_subscriber.cpp
 	src/topic_manager.cpp
 	src/ui.cpp
-)
-add_dependencies(rosbag_fancy
-    ${PROJECT_NAME}_generate_messages_cpp
 )
 target_link_libraries(rosbag_fancy
 	${catkin_LIBRARIES}
@@ -68,5 +53,3 @@ catkin_add_env_hooks(50-rosbag_fancy
 install(TARGETS rosbag_fancy tf2_republisher
 	RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
-
-add_subdirectory(gui)

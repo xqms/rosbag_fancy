@@ -6,11 +6,11 @@
 
 #include <QAbstractTableModel>
 
-#include <rosbag_fancy/Status.h>
+#include <rosbag_fancy_msgs/Status.h>
 
 class QTimer;
 
-namespace rosbag_fancy
+namespace rosbag_fancy_gui
 {
 
 class TopicModel : public QAbstractTableModel
@@ -40,13 +40,13 @@ public:
 	QVariant headerData(int section, Qt::Orientation orientation, int role) const override;
 	
 public Q_SLOTS:
-	void setState(const rosbag_fancy::StatusConstPtr& status);
+	void setState(const rosbag_fancy_msgs::StatusConstPtr& status);
 
 private Q_SLOTS:
 	void clear();
 
 private:
-	rosbag_fancy::StatusConstPtr m_status;
+	rosbag_fancy_msgs::StatusConstPtr m_status;
 	bool m_valid = false;
 	QTimer* m_timer;
 	

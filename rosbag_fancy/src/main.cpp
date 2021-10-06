@@ -15,7 +15,7 @@
 
 #include <std_srvs/Trigger.h>
 
-#include <rosbag_fancy/Status.h>
+#include <rosbag_fancy_msgs/Status.h>
 
 #include "topic_manager.h"
 #include "message_queue.h"
@@ -27,6 +27,7 @@
 
 namespace po = boost::program_options;
 using namespace rosbag_fancy;
+using namespace rosbag_fancy_msgs;
 
 namespace
 {

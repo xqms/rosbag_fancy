@@ -9,12 +9,12 @@
 
 #include <ros/subscriber.h>
 
-#include <rosbag_fancy/Status.h>
+#include <rosbag_fancy_msgs/Status.h>
 
 #include "topic_model.h"
 #include "ui_fancy_gui.h"
 
-namespace rosbag_fancy
+namespace rosbag_fancy_gui
 {
 
 class FancyGui : public rqt_gui_cpp::Plugin
@@ -30,11 +30,11 @@ public:
 	virtual void restoreSettings(const qt_gui_cpp::Settings& plugin_settings, const qt_gui_cpp::Settings& instance_settings) override;
 
 Q_SIGNALS:
-	void receivedStatus(const rosbag_fancy::StatusConstPtr& msg);
+	void receivedStatus(const rosbag_fancy_msgs::StatusConstPtr& msg);
 public Q_SLOTS:
 	void refreshTopicList();
 	void subscribe();
-	void updateView(const rosbag_fancy::StatusConstPtr& msg);
+	void updateView(const rosbag_fancy_msgs::StatusConstPtr& msg);
 
 private Q_SLOTS:
 	void start();

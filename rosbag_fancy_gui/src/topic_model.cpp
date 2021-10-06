@@ -7,7 +7,7 @@
 #include <QTimer>
 #include <rosfmt/full.h>
 
-namespace rosbag_fancy
+namespace rosbag_fancy_gui
 {
 
 TopicModel::TopicModel(QObject* parent)
@@ -93,7 +93,7 @@ QVariant TopicModel::data(const QModelIndex& index, int role) const
 		case Qt::BackgroundRole:
 			if(m_valid)
 			{
-				if(active && col == Column::Activity && m_status->status == rosbag_fancy::Status::STATUS_RUNNING)
+				if(active && col == Column::Activity && m_status->status == rosbag_fancy_msgs::Status::STATUS_RUNNING)
 					return QColor(Qt::green);
 				else if(topic.publishers < 1 && col == Column::Publisher)
 					return QColor(Qt::red);
@@ -173,7 +173,7 @@ QVariant TopicModel::headerData(int section, Qt::Orientation orientation, int ro
 	}
 }
 
-void TopicModel::setState(const rosbag_fancy::StatusConstPtr& state)
+void TopicModel::setState(const rosbag_fancy_msgs::StatusConstPtr& state)
 {
 	if(!m_status || m_status->topics.size() != state->topics.size())
 	{
