@@ -1,5 +1,5 @@
-<library path="lib/librosbag_fancy_gui">
-	<class type="rosbag_fancy_gui::FancyGui" base_class_type="rqt_gui_cpp::Plugin">
+<library path="lib/librqt_rosbag_fancy">
+	<class type="rqt_rosbag_fancy::FancyGui" base_class_type="rqt_gui_cpp::Plugin">
 		<description>
 			rosbag_fancy GUI
 		</description>

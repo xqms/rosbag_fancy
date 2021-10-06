@@ -7,7 +7,7 @@
 #include <QTimer>
 #include <rosfmt/full.h>
 
-namespace rosbag_fancy_gui
+namespace rqt_rosbag_fancy
 {
 
 TopicModel::TopicModel(QObject* parent)

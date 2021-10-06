@@ -17,7 +17,7 @@
 
 Q_DECLARE_METATYPE(rosbag_fancy_msgs::StatusConstPtr)
 
-namespace rosbag_fancy_gui
+namespace rqt_rosbag_fancy
 {
 
 FancyGui::FancyGui()
@@ -202,4 +202,4 @@ void FancyGui::stop()
 
 }
 
-PLUGINLIB_EXPORT_CLASS(rosbag_fancy_gui::FancyGui, rqt_gui_cpp::Plugin)
+PLUGINLIB_EXPORT_CLASS(rqt_rosbag_fancy::FancyGui, rqt_gui_cpp::Plugin)

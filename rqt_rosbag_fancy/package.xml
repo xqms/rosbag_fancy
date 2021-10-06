@@ -1,5 +1,5 @@
 <package format="3">
-	<name>rosbag_fancy_gui</name>
+	<name>rqt_rosbag_fancy</name>
 	<description>rqt GUI for rosbag_fancy</description>
 	<version>0.2.0</version>
 	<license>BSD</license>

@@ -1,6 +1,6 @@
 
 cmake_minimum_required(VERSION 3.0)
-project(rosbag_fancy_gui)
+project(rqt_rosbag_fancy)
 
 find_package(catkin REQUIRED COMPONENTS
 	rosbag_fancy_msgs
@@ -26,18 +26,18 @@ qt5_wrap_cpp(MOC_SRCS
 	src/topic_model.h
 )
 
-add_library(rosbag_fancy_gui
+add_library(rqt_rosbag_fancy
 	${UI_HDRS}
 	${MOC_SRCS}
 	src/fancy_gui.cpp
 	src/topic_model.cpp
 )
-target_link_libraries(rosbag_fancy_gui
+target_link_libraries(rqt_rosbag_fancy
 	${catkin_LIBRARIES}
 	Qt5::Widgets
 )
 
-install(TARGETS rosbag_fancy_gui
+install(TARGETS rqt_rosbag_fancy
 	ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 	LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 	RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}

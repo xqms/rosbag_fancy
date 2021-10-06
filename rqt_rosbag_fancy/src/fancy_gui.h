@@ -14,7 +14,7 @@
 #include "topic_model.h"
 #include "ui_fancy_gui.h"
 
-namespace rosbag_fancy_gui
+namespace rqt_rosbag_fancy
 {
 
 class FancyGui : public rqt_gui_cpp::Plugin

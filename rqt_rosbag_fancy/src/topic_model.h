@@ -10,7 +10,7 @@
 
 class QTimer;
 
-namespace rosbag_fancy_gui
+namespace rqt_rosbag_fancy
 {
 
 class TopicModel : public QAbstractTableModel
