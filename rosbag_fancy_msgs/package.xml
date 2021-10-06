@@ -1,0 +1,12 @@
+<package format="3">
+	<name>rosbag_fancy_msgs</name>
+	<description>Messages rosbag_fancy</description>
+	<version>0.2.0</version>
+	<license>BSD</license>
+
+	<maintainer email="max.schwarz@ais.uni-bonn.de">Max Schwarz</maintainer>
+
+	<buildtool_depend>catkin</buildtool_depend>
+	<depend>message_generation</depend>
+	<depend>std_msgs</depend>
+</package>
