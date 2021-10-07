@@ -107,7 +107,7 @@ private:
 
 	std::vector<std::uint64_t> m_messageCounts;
 
-	rosbag::compression::CompressionType m_compressionType;
+	rosbag::compression::CompressionType m_compressionType = rosbag::compression::Uncompressed;
 };
 
 }
