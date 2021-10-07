@@ -115,7 +115,7 @@ QVariant TopicModel::data(const QModelIndex& index, int role) const
 				case Column::Publisher:
 					return QString::number(topic.publishers);
 				case Column::Messages:
-					return QString::number(topic.messages);
+					return QString::number(topic.messages_in_current_bag);
 				case Column::Rate:
 					return rateToString(topic.rate);
 				case Column::Bytes:

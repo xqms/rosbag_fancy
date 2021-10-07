@@ -233,7 +233,7 @@ void UI::draw()
 
 		uint32_t messageColor = (topic.totalMessages == 0) ? 0x0000FF : 0;
 
-		writer.printColumn(fmt::format("{:10} ({:>8})", topic.totalMessages, rateToString(messageRate)), messageColor);
+		writer.printColumn(fmt::format("{:10} ({:>8})", topic.totalMessagesInBag, rateToString(messageRate)), messageColor);
 		writer.printColumn(fmt::format("{:>10} ({:>10}/s)", memoryToString(topic.totalBytes), memoryToString(topic.bandwidth)));
 
 		writer.printColumn(topic.dropCounter, topic.dropCounter > 0 ? 0x0000FF : 0);
@@ -241,7 +241,7 @@ void UI::draw()
 		writer.endRow();
 		cnt++;
 
-		totalMessages += topic.totalMessages;
+		totalMessages += topic.totalMessagesInBag;
 		totalBytes += topic.totalBytes;
 		totalRate += messageRate;
 		totalBandwidth += topic.bandwidth;
