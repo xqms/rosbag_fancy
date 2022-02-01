@@ -236,16 +236,19 @@ void UI::draw()
 
 		uint32_t messageColor = (topic.totalMessages == 0) ? 0x0000FF : 0;
 
-		writer.printColumn(fmt::format("{:10} ({:>8})", counts[topic.id], rateToString(messageRate)), messageColor);
-		writer.printColumn(fmt::format("{:>10} ({:>10}/s)", memoryToString(bytes[topic.id]), memoryToString(topic.bandwidth)));
+		uint64_t messageCount = topic.id < counts.size() ? counts[topic.id] : 0;
+		uint64_t byteCount = topic.id < bytes.size() ? bytes[topic.id] : 0;
+
+		writer.printColumn(fmt::format("{:10} ({:>8})", messageCount, rateToString(messageRate)), messageColor);
+		writer.printColumn(fmt::format("{:>10} ({:>10}/s)", memoryToString(byteCount), memoryToString(topic.bandwidth)));
 
 		writer.printColumn(topic.dropCounter, topic.dropCounter > 0 ? 0x0000FF : 0);
 
 		writer.endRow();
 		cnt++;
 
-		totalMessages += counts[topic.id];
-		totalBytes += bytes[topic.id];
+		totalMessages += messageCount;
+		totalBytes += byteCount;
 		totalRate += messageRate;
 		totalBandwidth += topic.bandwidth;
 		totalDrops += topic.dropCounter;
