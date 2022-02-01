@@ -213,6 +213,9 @@ void UI::draw()
 	writer.printHeader();
 	cnt += 2;
 
+	auto& counts = m_bagWriter.messageCounts();
+	auto& bytes = m_bagWriter.byteCounts();
+
 	for(auto& topic : m_topicManager.topics())
 	{
 		float messageRate = topic.messageRateAt(now);
@@ -233,16 +236,16 @@ void UI::draw()
 
 		uint32_t messageColor = (topic.totalMessages == 0) ? 0x0000FF : 0;
 
-		writer.printColumn(fmt::format("{:10} ({:>8})", topic.totalMessagesInBag, rateToString(messageRate)), messageColor);
-		writer.printColumn(fmt::format("{:>10} ({:>10}/s)", memoryToString(topic.totalBytes), memoryToString(topic.bandwidth)));
+		writer.printColumn(fmt::format("{:10} ({:>8})", counts[topic.id], rateToString(messageRate)), messageColor);
+		writer.printColumn(fmt::format("{:>10} ({:>10}/s)", memoryToString(bytes[topic.id]), memoryToString(topic.bandwidth)));
 
 		writer.printColumn(topic.dropCounter, topic.dropCounter > 0 ? 0x0000FF : 0);
 
 		writer.endRow();
 		cnt++;
 
-		totalMessages += topic.totalMessagesInBag;
-		totalBytes += topic.totalBytes;
+		totalMessages += counts[topic.id];
+		totalBytes += bytes[topic.id];
 		totalRate += messageRate;
 		totalBandwidth += topic.bandwidth;
 		totalDrops += topic.dropCounter;

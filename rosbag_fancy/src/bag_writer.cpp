@@ -141,9 +141,13 @@ void BagWriter::run()
 				m_sizeInBytes = m_bag.getSize();
 
 				if(msg->topicData->id >= m_messageCounts.size())
+				{
 					m_messageCounts.resize(msg->topicData->id+1, 0);
+					m_byteCounts.resize(msg->topicData->id+1, 0);
+				}
 
 				m_messageCounts[msg->topicData->id]++;
+				m_byteCounts[msg->topicData->id] += msg->size();
 			}
 		}
 

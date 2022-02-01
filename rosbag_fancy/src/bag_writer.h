@@ -61,6 +61,9 @@ public:
 	const std::vector<std::uint64_t>& messageCounts() const
 	{ return m_messageCounts; }
 
+	const std::vector<std::uint64_t>& byteCounts() const
+	{ return m_byteCounts; }
+
 	rosbag::compression::CompressionType compression() const
 	{ return m_compressionType; }
 
@@ -106,6 +109,7 @@ private:
 	boost::shared_ptr<std::map<std::string, std::string>> m_tf_header;
 
 	std::vector<std::uint64_t> m_messageCounts;
+	std::vector<std::uint64_t> m_byteCounts;
 
 	rosbag::compression::CompressionType m_compressionType = rosbag::compression::Uncompressed;
 };

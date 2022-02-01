@@ -52,7 +52,6 @@ struct Topic
 	std::uint64_t dropCounter = 0;
 
 	std::uint64_t totalMessages = 0;
-	std::uint64_t totalMessagesInBag = 0;
 	std::uint64_t totalBytes = 0;
 
 	unsigned int numPublishers = 0;
