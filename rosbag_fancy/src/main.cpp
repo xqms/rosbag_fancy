@@ -206,6 +206,11 @@ int record(const std::vector<std::string>& options)
 		}
 	}
 
+	if(!ros::Time::isValid())
+	{
+		ROSFMT_INFO("Waiting for ros::Time to become valid...");
+		ros::Time::waitForValid();
+	}
 
 	BagWriter writer{queue, bagName, namingMode, splitBagSizeInBytes, deleteOldAtInBytes};
 
