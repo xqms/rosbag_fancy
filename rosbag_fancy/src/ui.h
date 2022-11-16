@@ -10,6 +10,8 @@
 
 #include <ros/steady_timer.h>
 
+#include <boost/signals2.hpp>
+
 namespace rosbag_fancy
 {
 
@@ -45,6 +47,12 @@ public:
 	void setPositionInBag(const ros::Time& stamp);
 
 	void draw();
+
+	void handleInput();
+
+	boost::signals2::signal<void()> seekForwardRequested;
+	boost::signals2::signal<void()> seekBackwardRequested;
+	boost::signals2::signal<void()> pauseRequested;
 
 private:
 	template<class... Args>

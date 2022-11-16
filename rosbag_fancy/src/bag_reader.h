@@ -160,6 +160,7 @@ public:
 
 	Iterator begin() const;
 	Iterator end() const;
+	Iterator findTime(const ros::Time& time) const;
 
 private:
 	class Private;

@@ -209,15 +209,33 @@ Terminal::Terminal()
 
 	m_boldStr = tigetstr("bold");
 
-	// Map function keys
-	for(int i = 0; i < 12; ++i)
-	{
-		char* code = tigetstr(fmt::format("kf{}", i+1).c_str());
+	auto registerKey = [&](const char* name, SpecialKey key, const std::string& fallback = ""){
+		char* code = tigetstr(name);
 
 		// Who comes up with these return codes?
 		if(code && code != reinterpret_cast<char*>(-1))
-			m_specialKeys[code] = static_cast<SpecialKey>(SK_F1 + i);
+			m_specialKeys[code] = key;
+		else if(!fallback.empty())
+			m_specialKeys[fallback] = key;
+	};
+
+	// Map function keys
+	for(int i = 0; i < 12; ++i)
+	{
+		registerKey(
+			fmt::format("kf{}", i+1).c_str(),
+			static_cast<SpecialKey>(SK_F1 + i)
+		);
 	}
+
+	// Backspace
+	registerKey(key_backspace, SK_Backspace);
+
+	// Arrow keys
+	registerKey(key_up, SK_Up, "\033[A");
+	registerKey(key_down, SK_Down, "\033[B");
+	registerKey(key_right, SK_Right, "\033[C");
+	registerKey(key_left, SK_Left, "\033[D");
 }
 
 bool Terminal::has256Colors() const
@@ -413,6 +431,19 @@ void Terminal::clearWindowTitle(const std::string& backup)
 
 int Terminal::readKey()
 {
+	// Are we currently aborting an escape string that we did not recognize?
+	if(m_currentEscapeAborted)
+	{
+		char c = m_currentEscapeStr[m_currentEscapeAbortIdx++];
+		if(m_currentEscapeAbortIdx >= m_currentEscapeStr.size())
+		{
+			m_currentEscapeAborted = false;
+			m_currentEscapeStr.clear();
+		}
+
+		return c;
+	}
+
 	char c;
 	if(read(STDIN_FILENO, &c, 1) != 1)
 		return -1;
@@ -420,10 +451,13 @@ int Terminal::readKey()
 	if(m_currentEscapeStr.empty() && c == '\E')
 	{
 		m_currentEscapeStr.push_back(c);
+		m_escapeStartTime = std::chrono::steady_clock::now();
+		return -1;
 	}
 	else if(!m_currentEscapeStr.empty())
 	{
 		m_currentEscapeStr.push_back(c);
+		m_escapeStartTime = std::chrono::steady_clock::now();
 
 		std::size_t matches = 0;
 		int lastMatch = -1;
@@ -457,7 +491,12 @@ int Terminal::readKey()
 			m_currentEscapeStr.clear();
 			return lastMatch;
 		}
+		else
+			return -1;
 	}
+
+	if(c == 0x7f) // ASCII delete
+		return SK_Backspace;
 
 	return c;
 }

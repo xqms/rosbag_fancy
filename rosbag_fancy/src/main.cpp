@@ -527,33 +527,76 @@ int play(const std::vector<std::string>& options)
 
 	ros::WallDuration(0.5).sleep();
 
-	ros::Time startTime = reader.startTime();
-	ros::Time wallStartTime = ros::Time::now();
+	ros::Time bagRefTime = reader.startTime();
+	ros::Time wallRefTime = ros::Time::now();
+	ros::Time currentTime = bagRefTime;
 
 	std::unique_ptr<PlaybackUI> ui;
 
+	BagReader::Iterator it = reader.begin();
+	bool paused = false;
+
 	if(!vm.count("no-ui"))
+	{
 		ui.reset(new PlaybackUI{topicManager, reader});
 
-	for(auto& msg : reader)
+		ui->seekForwardRequested.connect([&](){
+			it = reader.findTime(currentTime + ros::Duration{5.0});
+			bagRefTime += ros::Duration{5.0};
+		});
+		ui->seekBackwardRequested.connect([&](){
+			it = reader.findTime(currentTime - ros::Duration{5.0});
+			bagRefTime -= ros::Duration{5.0};
+		});
+		ui->pauseRequested.connect([&](){
+			paused = !paused;
+			bagRefTime = currentTime;
+			wallRefTime = ros::Time::now();
+		});
+	}
+
+	while(ros::ok())
 	{
-		if(!ros::ok())
-			break;
+		if(paused)
+			ros::WallDuration{0.1}.sleep();
+		else
+		{
+			++it;
+			if(it == reader.end())
+				break;
 
-		if(msg.stamp < startTime)
-			continue;
+			auto& msg = *it;
 
-		ros::Time wallStamp = wallStartTime + (msg.stamp - startTime);
-		ros::Time::sleepUntil(wallStamp);
+			if(msg.stamp < bagRefTime)
+				continue;
 
-		ui->setPositionInBag(msg.stamp);
+			ros::Time wallStamp = wallRefTime + (msg.stamp - bagRefTime);
+			ros::Time::sleepUntil(wallStamp);
 
-		publishers[msg.connection->id].publish(msg);
+			currentTime = msg.stamp;
+			ui->setPositionInBag(msg.stamp);
 
-		auto& topic = topicManager.topics()[topicMap[msg.connection->topicInBag]];
-		topic.notifyMessage(msg.size());
+			publishers[msg.connection->id].publish(msg);
+
+			auto& topic = topicManager.topics()[topicMap[msg.connection->topicInBag]];
+			topic.notifyMessage(msg.size());
+		}
 
 		ros::spinOnce();
+
+		// Handle key input
+		if(ui)
+		{
+			fd_set fds{};
+			FD_ZERO(&fds);
+			FD_SET(STDIN_FILENO, &fds);
+			timeval timeout{};
+			int ret = select(STDIN_FILENO+1, &fds, nullptr, nullptr, &timeout);
+			if(ret < 0)
+				throw std::runtime_error{fmt::format("select() error: {}", strerror(errno))};
+			if(ret != 0)
+				ui->handleInput();
+		}
 	}
 
 	return 0;

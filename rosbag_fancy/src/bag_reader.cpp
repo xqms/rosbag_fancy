@@ -550,5 +550,27 @@ BagReader::Iterator BagReader::end() const
 	return Iterator();
 }
 
+BagReader::Iterator BagReader::findTime(const ros::Time& time) const
+{
+	// Find chunk
+	auto chunkIt = std::lower_bound(m_d->chunks.begin(), m_d->chunks.end(), time, [&](Chunk& chunk, const ros::Time& time){
+		return chunk.endTime < time;
+	});
+
+	if(chunkIt == m_d->chunks.end())
+		return {};
+
+	int chunkIdx = chunkIt - m_d->chunks.begin();
+
+	// Find message in chunk
+	auto it = Iterator{this, chunkIdx};
+	for(; it != end(); ++it)
+	{
+		if(it->stamp > time)
+			return it;
+	}
+
+	return it;
+}
 
 }

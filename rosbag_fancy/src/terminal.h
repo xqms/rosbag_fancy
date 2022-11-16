@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <string>
 #include <map>
+#include <chrono>
 
 namespace rosbag_fancy
 {
@@ -164,7 +165,8 @@ public:
 	{
 		SK_F1 = 0x100, SK_F2, SK_F3, SK_F4,
 		SK_F5, SK_F6, SK_F7, SK_F8,
-		SK_F9, SK_F10, SK_F11, SK_F12
+		SK_F9, SK_F10, SK_F11, SK_F12,
+		SK_Left, SK_Right, SK_Up, SK_Down, SK_Backspace
 	};
 
 	int readKey();
@@ -185,6 +187,9 @@ private:
 	std::map<std::string, SpecialKey> m_specialKeys;
 
 	std::string m_currentEscapeStr;
+	std::chrono::steady_clock::time_point m_escapeStartTime;
+	bool m_currentEscapeAborted = false;
+	unsigned int m_currentEscapeAbortIdx = 0;
 };
 
 }

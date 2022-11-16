@@ -512,6 +512,9 @@ void PlaybackUI::draw()
 		cnt++;
 	}
 
+	printLine(cnt, "");
+	printLine(cnt, "Hit [space] for pause, [left]/[right] for seeking");
+
 	g_statusLines = cnt;
 
 	// Move back
@@ -526,6 +529,26 @@ void PlaybackUI::draw()
 void PlaybackUI::setPositionInBag(const ros::Time& stamp)
 {
 	m_positionInBag = stamp;
+}
+
+void PlaybackUI::handleInput()
+{
+	int c = m_term.readKey();
+	if(c < 0)
+		return;
+
+	switch(c)
+	{
+		case Terminal::SK_Left:
+			seekBackwardRequested();
+			break;
+		case Terminal::SK_Right:
+			seekForwardRequested();
+			break;
+		case ' ':
+			pauseRequested();
+			break;
+	}
 }
 
 }
