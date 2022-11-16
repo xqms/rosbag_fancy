@@ -122,6 +122,7 @@ public:
 		using reference         = const Message&;
 		using pointer           = const Message*;
 
+		Iterator() {}
 		Iterator(const Iterator&) = default;
 		Iterator& operator=(const Iterator&) = default;
 
@@ -137,7 +138,6 @@ public:
 	private:
 		friend class BagReader;
 
-		Iterator() {}
 		explicit Iterator(const BagReader* reader, int chunk);
 
 		const BagReader* m_reader;
@@ -150,6 +150,8 @@ public:
 
 	BagReader(const BagReader&) = delete;
 	BagReader& operator=(const BagReader&) = delete;
+
+	BagReader(BagReader&& other);
 
 	const ConnectionMap& connections() const;
 

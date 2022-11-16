@@ -513,6 +513,11 @@ BagReader::BagReader(const std::string& filename)
 	}
 }
 
+BagReader::BagReader(BagReader&& other)
+ : m_d{std::move(other.m_d)}
+{
+}
+
 BagReader::~BagReader()
 {
 }

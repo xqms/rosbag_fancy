@@ -42,7 +42,7 @@ private:
 class PlaybackUI
 {
 public:
-	explicit PlaybackUI(TopicManager& topics, BagReader& reader);
+	explicit PlaybackUI(TopicManager& topics, const ros::Time& startTime, const ros::Time& endTime);
 
 	void setPositionInBag(const ros::Time& stamp);
 
@@ -59,7 +59,9 @@ private:
 	void printLine(unsigned int& lineCounter, const Args& ... args);
 
 	TopicManager& m_topicManager;
-	BagReader& m_bagReader;
+
+	ros::Time m_startTime;
+	ros::Time m_endTime;
 
 	Terminal m_term;
 

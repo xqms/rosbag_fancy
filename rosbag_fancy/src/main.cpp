@@ -461,17 +461,17 @@ int play(const std::vector<std::string>& options)
 
 		po::options_description hidden("Hidden");
 		hidden.add_options()
-			("input", po::value<std::string>()->required(), "Input file")
+			("input", po::value<std::vector<std::string>>()->required(), "Input file")
 		;
 
 		po::options_description all("All");
 		all.add(desc).add(hidden);
 
 		po::positional_options_description p;
-		p.add("input", 1);
+		p.add("input", -1);
 
 		auto usage = [&](){
-			std::cout << "Usage: rosbag_fancy play [options] <bag file>\n\n";
+			std::cout << "Usage: rosbag_fancy play [options] <bag file(s)>\n\n";
 			std::cout << desc << "\n\n";
 		};
 
@@ -498,7 +498,6 @@ int play(const std::vector<std::string>& options)
 		}
 	}
 
-	std::string filename = vm["input"].as<std::string>();
 	bool publishClock = vm.count("clock");
 
 	ros::Publisher pub_clock;
@@ -507,56 +506,89 @@ int play(const std::vector<std::string>& options)
 	if(publishClock)
 		pub_clock = ros::NodeHandle{}.advertise<rosgraph_msgs::Clock>("/clock", 1, true);
 
-	BagReader reader(filename);
+	struct Bag
+	{
+		explicit Bag(const std::string& filename)
+		 : reader{filename}
+		{}
+
+		BagReader reader;
+		BagReader::Iterator it;
+		std::unordered_map<int, ros::Publisher> publishers;
+	};
+
+	std::vector<Bag> bags;
 
 	TopicManager topicManager;
 	std::map<std::string, int> topicMap;
 
 	ros::NodeHandle nh;
-	std::unordered_map<int, ros::Publisher> publishers;
-	for(auto& [id, con] : reader.connections())
+
+	ros::Time startTime;
+	ros::Time endTime;
+
+	for(auto& filename : vm["input"].as<std::vector<std::string>>())
 	{
-		ros::AdvertiseOptions opts;
-		opts.datatype = con.type;
-		opts.md5sum = con.md5sum;
-		opts.message_definition = con.msgDef;
-		opts.topic = con.topicInBag;
-		opts.latch = con.latching;
-		opts.queue_size = 100;
-		opts.has_header = false; // FIXME: Is this correct?
+		auto& bag = bags.emplace_back(filename);
 
-		publishers[id] = nh.advertise(opts);
+		if(startTime == ros::Time(0) || bag.reader.startTime() < startTime)
+			startTime = bag.reader.startTime();
 
-		auto it = topicMap.find(con.topicInBag);
-		if(it == topicMap.end())
+		if(endTime == ros::Time(0) || bag.reader.endTime() > endTime)
+			endTime = bag.reader.endTime();
+
+		for(auto& [id, con] : bag.reader.connections())
 		{
-			topicMap[con.topicInBag] = topicManager.topics().size();
-			topicManager.addTopic(con.topicInBag);
+			ros::AdvertiseOptions opts;
+			opts.datatype = con.type;
+			opts.md5sum = con.md5sum;
+			opts.message_definition = con.msgDef;
+			opts.topic = con.topicInBag;
+			opts.latch = con.latching;
+			opts.queue_size = 100;
+			opts.has_header = false; // FIXME: Is this correct?
+
+			bag.publishers[id] = nh.advertise(opts);
+
+			auto it = topicMap.find(con.topicInBag);
+			if(it == topicMap.end())
+			{
+				topicMap[con.topicInBag] = topicManager.topics().size();
+				topicManager.addTopic(con.topicInBag);
+			}
 		}
 	}
 
+	for(auto& bag : bags)
+		bag.it = bag.reader.begin();
+
 	ros::WallDuration(0.2).sleep();
 
-	ros::Time bagRefTime = reader.startTime();
+	ros::Time bagRefTime = startTime;
 	ros::SteadyTime wallRefTime = ros::SteadyTime::now();
 	ros::Time currentTime = bagRefTime;
 
 	std::unique_ptr<PlaybackUI> ui;
 
-	BagReader::Iterator it = reader.begin();
 	bool paused = false;
 
 	if(!vm.count("no-ui"))
 	{
-		ui.reset(new PlaybackUI{topicManager, reader});
+		ui.reset(new PlaybackUI{topicManager, startTime, endTime});
 
 		ui->seekForwardRequested.connect([&](){
-			it = reader.findTime(currentTime + ros::Duration{5.0});
+			currentTime += ros::Duration{5.0};
 			bagRefTime += ros::Duration{5.0};
+
+			for(auto& bag : bags)
+				bag.it = bag.reader.findTime(currentTime);
 		});
 		ui->seekBackwardRequested.connect([&](){
-			it = reader.findTime(currentTime - ros::Duration{5.0});
+			currentTime -= ros::Duration{5.0};
 			bagRefTime -= ros::Duration{5.0};
+
+			for(auto& bag : bags)
+				bag.it = bag.reader.findTime(currentTime);
 		});
 		ui->pauseRequested.connect([&](){
 			paused = !paused;
@@ -571,11 +603,22 @@ int play(const std::vector<std::string>& options)
 			ros::WallDuration{0.1}.sleep();
 		else
 		{
-			++it;
-			if(it == reader.end())
-				break;
+			ros::Time earliestStamp;
+			Bag* earliestBag = nullptr;
 
-			auto& msg = *it;
+			for(auto& bag : bags)
+			{
+				if(bag.it == bag.reader.end())
+					continue;
+
+				if(!earliestBag || bag.it->stamp < earliestStamp)
+				{
+					earliestBag = &bag;
+					earliestStamp = bag.it->stamp;
+				}
+			}
+
+			auto& msg = *earliestBag->it;
 
 			if(msg.stamp < bagRefTime)
 				continue;
@@ -586,7 +629,7 @@ int play(const std::vector<std::string>& options)
 			currentTime = msg.stamp;
 			ui->setPositionInBag(msg.stamp);
 
-			publishers[msg.connection->id].publish(msg);
+			earliestBag->publishers[msg.connection->id].publish(msg);
 
 			auto& topic = topicManager.topics()[topicMap[msg.connection->topicInBag]];
 			topic.notifyMessage(msg.size());
@@ -598,6 +641,8 @@ int play(const std::vector<std::string>& options)
 				pub_clock.publish(msg);
 				lastClockPublishTime = wallStamp;
 			}
+
+			++earliestBag->it;
 		}
 
 		ros::spinOnce();

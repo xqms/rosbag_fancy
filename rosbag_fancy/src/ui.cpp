@@ -343,9 +343,10 @@ void UI::draw()
 
 
 // Playback UI
-PlaybackUI::PlaybackUI(TopicManager& topics, BagReader& reader)
+PlaybackUI::PlaybackUI(TopicManager& topics, const ros::Time& startTime, const ros::Time& endTime)
  : m_topicManager{topics}
- , m_bagReader{reader}
+ , m_startTime{startTime}
+ , m_endTime{endTime}
 {
 	std::atexit(&cleanup);
 
@@ -449,8 +450,8 @@ void PlaybackUI::draw()
 	// Size info
 	{
 		// A lot of std::chrono magic to get local/UTC time
-		std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds> startTimeC(std::chrono::nanoseconds(m_bagReader.startTime().toNSec()));
-		std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds> endTimeC(std::chrono::nanoseconds(m_bagReader.endTime().toNSec()));
+		std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds> startTimeC(std::chrono::nanoseconds(m_startTime.toNSec()));
+		std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds> endTimeC(std::chrono::nanoseconds(m_endTime.toNSec()));
 		std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds> currentTimeC(std::chrono::nanoseconds(m_positionInBag.toNSec()));
 
 		std::chrono::seconds startTimeS = std::chrono::duration_cast<std::chrono::seconds>(startTimeC.time_since_epoch());
@@ -474,15 +475,14 @@ void PlaybackUI::draw()
 		localtime_r(&currentTimeSC, &currentTimeB);
 		gmtime_r(&currentTimeSC, &currentTimeBUTC);
 
-		std::chrono::duration<double, std::nano> duration{(m_bagReader.endTime() - m_bagReader.startTime()).toNSec()};
-		std::chrono::duration<double, std::nano> positionInBag{(m_positionInBag - m_bagReader.startTime()).toNSec()};
+		std::chrono::duration<double, std::nano> duration{(m_endTime - m_startTime).toNSec()};
+		std::chrono::duration<double, std::nano> positionInBag{(m_positionInBag - m_startTime).toNSec()};
 
 		printLine(cnt, "Start time:     {:%Y-%m-%d %H:%M:%S} ({}) / {:%Y-%m-%d %H:%M:%S} (UTC)", startTimeB, daylight ? tzname[1] : tzname[0], startTimeBUTC);
 		printLine(cnt, "End time:       {:%Y-%m-%d %H:%M:%S} ({}) / {:%Y-%m-%d %H:%M:%S} (UTC)", endTimeB, daylight ? tzname[1] : tzname[0], endTimeBUTC);
 		printLine(cnt, "Current time:   {:%Y-%m-%d %H:%M:%S} ({}) / {:%Y-%m-%d %H:%M:%S} (UTC)", currentTimeB, daylight ? tzname[1] : tzname[0], currentTimeBUTC);
-		printLine(cnt, "Duration:       {:.2%H:%M:%S} ({:7.2f}s)", duration, (m_bagReader.endTime() - m_bagReader.startTime()).toSec());
-		printLine(cnt, "Position:       {:.2%H:%M:%S} ({:7.2f}s)", positionInBag, (m_positionInBag - m_bagReader.startTime()).toSec());
-		printLine(cnt, "Size:           {}", memoryToString(m_bagReader.size()));
+		printLine(cnt, "Duration:       {:.2%H:%M:%S} ({:7.2f}s)", duration, (m_endTime - m_startTime).toSec());
+		printLine(cnt, "Position:       {:.2%H:%M:%S} ({:7.2f}s)", positionInBag, (m_positionInBag - m_startTime).toSec());
 		printLine(cnt, "");
 	}
 
@@ -495,7 +495,7 @@ void PlaybackUI::draw()
 		fmt::print("│");
 
 		int steps = w * 8;
-		int pos = (m_positionInBag - m_bagReader.startTime()).toSec() / (m_bagReader.endTime() - m_bagReader.startTime()).toSec() * steps;
+		int pos = (m_positionInBag - m_startTime).toSec() / (m_endTime - m_startTime).toSec() * steps;
 
 		for(int i = 0; i < pos / 8; ++i)
 			fmt::print("█");
