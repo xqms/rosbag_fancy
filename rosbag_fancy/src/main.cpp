@@ -301,7 +301,7 @@ int record(const std::vector<std::string>& options)
 	std::unique_ptr<UI> ui;
 
 	if(!vm.count("no-ui"))
-		ui.reset(new UI{topicManager, queue, writer, UI::Mode::Recording});
+		ui.reset(new UI{topicManager, queue, writer});
 
 	ros::spin();
 
@@ -445,6 +445,120 @@ int info(const std::vector<std::string>& options)
 	return 0;
 }
 
+int play(const std::vector<std::string>& options)
+{
+	po::variables_map vm;
+
+	// Handle CLI arguments
+	{
+		po::options_description desc("Options");
+		desc.add_options()
+			("help", "Display this help message")
+		;
+
+		po::options_description hidden("Hidden");
+		hidden.add_options()
+			("input", po::value<std::string>()->required(), "Input file")
+		;
+
+		po::options_description all("All");
+		all.add(desc).add(hidden);
+
+		po::positional_options_description p;
+		p.add("input", 1);
+
+		auto usage = [&](){
+			std::cout << "Usage: rosbag_fancy play [options] <bag file>\n\n";
+			std::cout << desc << "\n\n";
+		};
+
+		try
+		{
+			po::store(
+				po::command_line_parser(options).options(all).positional(p).run(),
+				vm
+			);
+
+			if(vm.count("help"))
+			{
+				usage();
+				return 0;
+			}
+
+			po::notify(vm);
+		}
+		catch(po::error& e)
+		{
+			std::cerr << "Could not parse arguments: " << e.what() << "\n\n";
+			usage();
+			return 1;
+		}
+	}
+
+	std::string filename = vm["input"].as<std::string>();
+
+	BagReader reader(filename);
+
+	TopicManager topicManager;
+	std::map<std::string, int> topicMap;
+
+	ros::NodeHandle nh;
+	std::unordered_map<int, ros::Publisher> publishers;
+	for(auto& [id, con] : reader.connections())
+	{
+		ros::AdvertiseOptions opts;
+		opts.datatype = con.type;
+		opts.md5sum = con.md5sum;
+		opts.message_definition = con.msgDef;
+		opts.topic = con.topicInBag;
+		opts.latch = con.latching;
+		opts.queue_size = 100;
+		opts.has_header = false; // FIXME: Is this correct?
+
+		publishers[id] = nh.advertise(opts);
+
+		auto it = topicMap.find(con.topicInBag);
+		if(it == topicMap.end())
+		{
+			topicMap[con.topicInBag] = topicManager.topics().size();
+			topicManager.addTopic(con.topicInBag);
+		}
+	}
+
+	ros::WallDuration(0.5).sleep();
+
+	ros::Time startTime = reader.startTime();
+	ros::Time wallStartTime = ros::Time::now();
+
+	std::unique_ptr<PlaybackUI> ui;
+
+	if(!vm.count("no-ui"))
+		ui.reset(new PlaybackUI{topicManager, reader});
+
+	for(auto& msg : reader)
+	{
+		if(!ros::ok())
+			break;
+
+		if(msg.stamp < startTime)
+			continue;
+
+		ros::Time wallStamp = wallStartTime + (msg.stamp - startTime);
+		ros::Time::sleepUntil(wallStamp);
+
+		ui->setPositionInBag(msg.stamp);
+
+		publishers[msg.connection->id].publish(msg);
+
+		auto& topic = topicManager.topics()[topicMap[msg.connection->topicInBag]];
+		topic.notifyMessage(msg.size());
+
+		ros::spinOnce();
+	}
+
+	return 0;
+}
+
 int main(int argc, char** argv)
 {
 	ros::init(argc, argv, "rosbag_fancy", ros::init_options::AnonymousName);
@@ -455,6 +569,7 @@ int main(int argc, char** argv)
 			"Available commands:\n"
 			"  record: Record a bagfile\n"
 			"  info: Display information about a bagfile\n"
+			"  play: Play bagfile\n"
 			"\n"
 			"See rosbag_fancy <command> --help for command-specific instructions.\n"
 			"\n"
@@ -481,6 +596,8 @@ int main(int argc, char** argv)
 		return record(arguments);
 	else if(cmd == "info")
 		return info(arguments);
+	else if(cmd == "play")
+		return play(arguments);
 	else
 	{
 		fmt::print(stderr, "Unknown command {}, see --help\n", cmd);

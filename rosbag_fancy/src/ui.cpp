@@ -3,8 +3,10 @@
 
 #include "ui.h"
 #include "bag_writer.h"
+#include "bag_reader.h"
 
 #include <fmt/format.h>
+#include <fmt/chrono.h>
 
 #include <ros/node_handle.h>
 
@@ -152,11 +154,10 @@ namespace
 	};
 }
 
-UI::UI(TopicManager& config, MessageQueue& queue, BagWriter& writer, Mode mode)
+UI::UI(TopicManager& config, MessageQueue& queue, BagWriter& writer)
  : m_topicManager{config}
  , m_queue{queue}
  , m_bagWriter{writer}
- , m_mode{mode}
 {
 	std::atexit(&cleanup);
 
@@ -337,6 +338,194 @@ void UI::draw()
 	fflush(stdout);
 
 	m_lastDrawTime = now;
+}
+
+
+
+// Playback UI
+PlaybackUI::PlaybackUI(TopicManager& topics, BagReader& reader)
+ : m_topicManager{topics}
+ , m_bagReader{reader}
+{
+	std::atexit(&cleanup);
+
+	// Switch cursor off
+	m_term.setCursorInvisible();
+
+	// Switch character echo off
+	m_term.setEcho(false);
+
+	g_statusLines = m_topicManager.topics().size();
+
+	ros::NodeHandle nh;
+	m_timer = nh.createSteadyTimer(ros::WallDuration(0.1), boost::bind(&PlaybackUI::draw, this));
+}
+
+template<class... Args>
+void PlaybackUI::printLine(unsigned int& lineCounter, const Args& ... args)
+{
+	lineCounter++;
+	m_term.clearToEndOfLine();
+	fmt::print(args...);
+	putchar('\n');
+}
+
+void PlaybackUI::draw()
+{
+	unsigned int cnt = 0;
+
+	ros::WallTime now = ros::WallTime::now();
+
+	printLine(cnt, "");
+	printLine(cnt, "");
+
+	float totalRate = 0.0f;
+	float totalBandwidth = 0.0f;
+	bool totalActivity = false;
+	unsigned int totalDrops = 0;
+
+	unsigned int maxTopicWidth = 0;
+	for(auto& topic : m_topicManager.topics())
+		maxTopicWidth = std::max<unsigned int>(maxTopicWidth, topic.name.length());
+
+	TableWriter<5> writer{m_term, {{
+		{"Act"},
+		{"Topic", maxTopicWidth},
+		{"Sub"},
+		{"Messages", 22},
+		{"Bytes", 25}
+	}}};
+
+	writer.printHeader();
+	cnt += 2;
+
+	for(auto& topic : m_topicManager.topics())
+	{
+		float messageRate = topic.messageRateAt(now);
+		bool activity = topic.lastMessageTime > m_lastDrawTime;
+
+		writer.startRow();
+
+		if(activity)
+		{
+			totalActivity = true;
+			writer.printColumn(" ▮ ", 0x00FF00);
+		}
+		else
+			writer.printColumn("");
+
+		writer.printColumn(topic.name);
+		writer.printColumn(topic.numPublishers, topic.numPublishers == 0 ? 0x0000FF : 0);
+
+		uint32_t messageColor = (topic.totalMessages == 0) ? 0x0000FF : 0;
+
+		writer.printColumn(fmt::format("{:>8}", rateToString(messageRate)), messageColor);
+		writer.printColumn(fmt::format("{:>10}/s", memoryToString(topic.bandwidth)));
+
+		writer.endRow();
+		cnt++;
+
+		totalRate += messageRate;
+		totalBandwidth += topic.bandwidth;
+		totalDrops += topic.dropCounter;
+
+		m_term.setStandardColors();
+	}
+	writer.printDash();
+	cnt++;
+
+	writer.startRow();
+	if(totalActivity)
+		writer.printColumn(" ▮ ", 0x00FF00);
+	else
+		writer.printColumn("");
+	writer.printColumn("All");
+	writer.printColumn("");
+	writer.printColumn(fmt::format("{:>8}", rateToString(totalRate)));
+	writer.printColumn(fmt::format("{:>10}/s", memoryToString(totalBandwidth)));
+
+	writer.endRow();
+	cnt++;
+
+	printLine(cnt, "");
+
+	// Size info
+	{
+		// A lot of std::chrono magic to get local/UTC time
+		std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds> startTimeC(std::chrono::nanoseconds(m_bagReader.startTime().toNSec()));
+		std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds> endTimeC(std::chrono::nanoseconds(m_bagReader.endTime().toNSec()));
+
+		std::chrono::seconds startTimeS = std::chrono::duration_cast<std::chrono::seconds>(startTimeC.time_since_epoch());
+		std::time_t startTimeSC(startTimeS.count());
+		std::tm startTimeB;
+		std::tm startTimeBUTC;
+		localtime_r(&startTimeSC, &startTimeB);
+		gmtime_r(&startTimeSC, &startTimeBUTC);
+
+		std::chrono::seconds endTimeS = std::chrono::duration_cast<std::chrono::seconds>(endTimeC.time_since_epoch());
+		std::time_t endTimeSC(endTimeS.count());
+		std::tm endTimeB;
+		std::tm endTimeBUTC;
+		localtime_r(&endTimeSC, &endTimeB);
+		gmtime_r(&endTimeSC, &endTimeBUTC);
+
+		std::chrono::duration<double, std::nano> duration{(m_bagReader.endTime() - m_bagReader.startTime()).toNSec()};
+		std::chrono::duration<double, std::nano> positionInBag{(m_positionInBag - m_bagReader.startTime()).toNSec()};
+
+		printLine(cnt, "Start time:     {:%Y-%m-%d %H:%M:%S} ({}) / {:%Y-%m-%d %H:%M:%S} (UTC)", startTimeB, daylight ? tzname[1] : tzname[0], startTimeBUTC);
+		printLine(cnt, "End time:       {:%Y-%m-%d %H:%M:%S} ({}) / {:%Y-%m-%d %H:%M:%S} (UTC)", endTimeB, daylight ? tzname[1] : tzname[0], endTimeBUTC);
+		printLine(cnt, "Duration:       {:.2%H:%M:%S} ({:7.2f}s)", duration, (m_bagReader.endTime() - m_bagReader.startTime()).toSec());
+		printLine(cnt, "Position:       {:.2%H:%M:%S} ({:7.2f}s)", positionInBag, (m_positionInBag - m_bagReader.startTime()).toSec());
+		printLine(cnt, "Size:           {}", memoryToString(m_bagReader.size()));
+		printLine(cnt, "");
+	}
+
+	// Progress bar
+	{
+		int w = 80, h;
+		m_term.getSize(&w, &h);
+
+		w -= 3;
+		fmt::print("│");
+
+		int steps = w * 8;
+		int pos = (m_positionInBag - m_bagReader.startTime()).toSec() / (m_bagReader.endTime() - m_bagReader.startTime()).toSec() * steps;
+
+		for(int i = 0; i < pos / 8; ++i)
+			fmt::print("█");
+		switch(pos % 8)
+		{
+			case 0: fmt::print(" "); break;
+			case 1: fmt::print("▏"); break;
+			case 2: fmt::print("▎"); break;
+			case 3: fmt::print("▍"); break;
+			case 4: fmt::print("▌"); break;
+			case 5: fmt::print("▋"); break;
+			case 6: fmt::print("▊"); break;
+			case 7: fmt::print("▉"); break;
+		}
+
+		for(int i = 0; i < w - pos/8 - 1; ++i)
+			putchar(' ');
+		fmt::print("│\n");
+
+		cnt++;
+	}
+
+	g_statusLines = cnt;
+
+	// Move back
+	m_term.clearToEndOfLine();
+	m_term.moveCursorUp(g_statusLines);
+	m_term.moveCursorToStartOfLine();
+	fflush(stdout);
+
+	m_lastDrawTime = now;
+}
+
+void PlaybackUI::setPositionInBag(const ros::Time& stamp)
+{
+	m_positionInBag = stamp;
 }
 
 }
