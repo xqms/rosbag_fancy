@@ -525,7 +525,7 @@ int play(const std::vector<std::string>& options)
 		}
 	}
 
-	ros::WallDuration(0.5).sleep();
+	ros::WallDuration(0.2).sleep();
 
 	ros::Time bagRefTime = reader.startTime();
 	ros::Time wallRefTime = ros::Time::now();
@@ -593,8 +593,11 @@ int play(const std::vector<std::string>& options)
 			timeval timeout{};
 			int ret = select(STDIN_FILENO+1, &fds, nullptr, nullptr, &timeout);
 			if(ret < 0)
-				throw std::runtime_error{fmt::format("select() error: {}", strerror(errno))};
-			if(ret != 0)
+			{
+				if(errno != EAGAIN && errno != EINTR)
+					throw std::runtime_error{fmt::format("select() error: {}", strerror(errno))};
+			}
+			else if(ret != 0)
 				ui->handleInput();
 		}
 	}
