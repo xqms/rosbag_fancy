@@ -451,6 +451,7 @@ void PlaybackUI::draw()
 		// A lot of std::chrono magic to get local/UTC time
 		std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds> startTimeC(std::chrono::nanoseconds(m_bagReader.startTime().toNSec()));
 		std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds> endTimeC(std::chrono::nanoseconds(m_bagReader.endTime().toNSec()));
+		std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds> currentTimeC(std::chrono::nanoseconds(m_positionInBag.toNSec()));
 
 		std::chrono::seconds startTimeS = std::chrono::duration_cast<std::chrono::seconds>(startTimeC.time_since_epoch());
 		std::time_t startTimeSC(startTimeS.count());
@@ -466,11 +467,19 @@ void PlaybackUI::draw()
 		localtime_r(&endTimeSC, &endTimeB);
 		gmtime_r(&endTimeSC, &endTimeBUTC);
 
+		std::chrono::seconds currentTimeS = std::chrono::duration_cast<std::chrono::seconds>(currentTimeC.time_since_epoch());
+		std::time_t currentTimeSC(currentTimeS.count());
+		std::tm currentTimeB;
+		std::tm currentTimeBUTC;
+		localtime_r(&currentTimeSC, &currentTimeB);
+		gmtime_r(&currentTimeSC, &currentTimeBUTC);
+
 		std::chrono::duration<double, std::nano> duration{(m_bagReader.endTime() - m_bagReader.startTime()).toNSec()};
 		std::chrono::duration<double, std::nano> positionInBag{(m_positionInBag - m_bagReader.startTime()).toNSec()};
 
 		printLine(cnt, "Start time:     {:%Y-%m-%d %H:%M:%S} ({}) / {:%Y-%m-%d %H:%M:%S} (UTC)", startTimeB, daylight ? tzname[1] : tzname[0], startTimeBUTC);
 		printLine(cnt, "End time:       {:%Y-%m-%d %H:%M:%S} ({}) / {:%Y-%m-%d %H:%M:%S} (UTC)", endTimeB, daylight ? tzname[1] : tzname[0], endTimeBUTC);
+		printLine(cnt, "Current time:   {:%Y-%m-%d %H:%M:%S} ({}) / {:%Y-%m-%d %H:%M:%S} (UTC)", currentTimeB, daylight ? tzname[1] : tzname[0], currentTimeBUTC);
 		printLine(cnt, "Duration:       {:.2%H:%M:%S} ({:7.2f}s)", duration, (m_bagReader.endTime() - m_bagReader.startTime()).toSec());
 		printLine(cnt, "Position:       {:.2%H:%M:%S} ({:7.2f}s)", positionInBag, (m_positionInBag - m_bagReader.startTime()).toSec());
 		printLine(cnt, "Size:           {}", memoryToString(m_bagReader.size()));
