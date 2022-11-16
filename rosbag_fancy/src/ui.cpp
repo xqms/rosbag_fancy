@@ -388,10 +388,9 @@ void PlaybackUI::draw()
 	for(auto& topic : m_topicManager.topics())
 		maxTopicWidth = std::max<unsigned int>(maxTopicWidth, topic.name.length());
 
-	TableWriter<5> writer{m_term, {{
+	TableWriter<4> writer{m_term, {{
 		{"Act"},
 		{"Topic", maxTopicWidth},
-		{"Sub"},
 		{"Messages", 22},
 		{"Bytes", 25}
 	}}};
@@ -415,7 +414,6 @@ void PlaybackUI::draw()
 			writer.printColumn("");
 
 		writer.printColumn(topic.name);
-		writer.printColumn(topic.numPublishers, topic.numPublishers == 0 ? 0x0000FF : 0);
 
 		uint32_t messageColor = (topic.totalMessages == 0) ? 0x0000FF : 0;
 
@@ -440,7 +438,6 @@ void PlaybackUI::draw()
 	else
 		writer.printColumn("");
 	writer.printColumn("All");
-	writer.printColumn("");
 	writer.printColumn(fmt::format("{:>8}", rateToString(totalRate)));
 	writer.printColumn(fmt::format("{:>10}/s", memoryToString(totalBandwidth)));
 
