@@ -13,6 +13,8 @@
 
 #include <rosbag/bag.h>
 
+#include <rosgraph_msgs/Clock.h>
+
 #include <std_srvs/Trigger.h>
 
 #include <rosbag_fancy_msgs/Status.h>
@@ -454,6 +456,7 @@ int play(const std::vector<std::string>& options)
 		po::options_description desc("Options");
 		desc.add_options()
 			("help", "Display this help message")
+			("clock", "Publish clock (requires use_sim_time)")
 		;
 
 		po::options_description hidden("Hidden");
@@ -496,6 +499,13 @@ int play(const std::vector<std::string>& options)
 	}
 
 	std::string filename = vm["input"].as<std::string>();
+	bool publishClock = vm.count("clock");
+
+	ros::Publisher pub_clock;
+	ros::SteadyTime lastClockPublishTime;
+
+	if(publishClock)
+		pub_clock = ros::NodeHandle{}.advertise<rosgraph_msgs::Clock>("/clock", 1, true);
 
 	BagReader reader(filename);
 
@@ -528,7 +538,7 @@ int play(const std::vector<std::string>& options)
 	ros::WallDuration(0.2).sleep();
 
 	ros::Time bagRefTime = reader.startTime();
-	ros::Time wallRefTime = ros::Time::now();
+	ros::SteadyTime wallRefTime = ros::SteadyTime::now();
 	ros::Time currentTime = bagRefTime;
 
 	std::unique_ptr<PlaybackUI> ui;
@@ -551,7 +561,7 @@ int play(const std::vector<std::string>& options)
 		ui->pauseRequested.connect([&](){
 			paused = !paused;
 			bagRefTime = currentTime;
-			wallRefTime = ros::Time::now();
+			wallRefTime = ros::SteadyTime::now();
 		});
 	}
 
@@ -570,8 +580,8 @@ int play(const std::vector<std::string>& options)
 			if(msg.stamp < bagRefTime)
 				continue;
 
-			ros::Time wallStamp = wallRefTime + (msg.stamp - bagRefTime);
-			ros::Time::sleepUntil(wallStamp);
+			ros::SteadyTime wallStamp = wallRefTime + ros::WallDuration().fromNSec((msg.stamp - bagRefTime).toNSec());
+			ros::SteadyTime::sleepUntil(wallStamp);
 
 			currentTime = msg.stamp;
 			ui->setPositionInBag(msg.stamp);
@@ -580,6 +590,14 @@ int play(const std::vector<std::string>& options)
 
 			auto& topic = topicManager.topics()[topicMap[msg.connection->topicInBag]];
 			topic.notifyMessage(msg.size());
+
+			if(publishClock && wallStamp - lastClockPublishTime > ros::WallDuration{0.001})
+			{
+				rosgraph_msgs::Clock msg;
+				msg.clock = currentTime;
+				pub_clock.publish(msg);
+				lastClockPublishTime = wallStamp;
+			}
 		}
 
 		ros::spinOnce();
