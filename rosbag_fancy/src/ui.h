@@ -14,17 +14,12 @@ namespace rosbag_fancy
 {
 
 class BagWriter;
+class BagReader;
 
 class UI
 {
 public:
-	enum class Mode
-	{
-		Recording,
-		Playback
-	};
-
-	UI(TopicManager& config, MessageQueue& queue, BagWriter& writer, Mode mode);
+	UI(TopicManager& config, MessageQueue& queue, BagWriter& writer);
 
 	void draw();
 
@@ -36,11 +31,34 @@ private:
 	MessageQueue& m_queue;
 	BagWriter& m_bagWriter;
 
-	Mode m_mode;
 	Terminal m_term;
 
 	ros::SteadyTimer m_timer;
 	ros::WallTime m_lastDrawTime;
+};
+
+class PlaybackUI
+{
+public:
+	explicit PlaybackUI(TopicManager& topics, BagReader& reader);
+
+	void setPositionInBag(const ros::Time& stamp);
+
+	void draw();
+
+private:
+	template<class... Args>
+	void printLine(unsigned int& lineCounter, const Args& ... args);
+
+	TopicManager& m_topicManager;
+	BagReader& m_bagReader;
+
+	Terminal m_term;
+
+	ros::SteadyTimer m_timer;
+	ros::WallTime m_lastDrawTime;
+
+	ros::Time m_positionInBag;
 };
 
 }

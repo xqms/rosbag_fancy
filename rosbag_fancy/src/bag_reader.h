@@ -44,10 +44,13 @@ public:
 
 	using ConnectionMap = std::map<std::uint32_t, Connection>;
 
+	class ChunkIterator;
+	class Iterator;
+
 	struct Message
 	{
 		ros::Time stamp;
-		Connection* connection;
+		const Connection* connection;
 
 		template<class M>
 		boost::shared_ptr<M> instantiate() const
@@ -65,43 +68,81 @@ public:
 			return ret;
 		}
 
+		const uint8_t* data() const
+		{ return m_data; }
+
+		std::size_t size() const
+		{ return m_size; }
+
 	private:
-		const uint8_t* m_data;
+		friend class BagReader::ChunkIterator;
+		friend struct ros::serialization::Serializer<rosbag_fancy::BagReader::Message>;
+
+		const uint8_t* m_data = nullptr;
 		std::size_t m_size;
 	};
 
-	struct Iterator
+	class ChunkIterator
 	{
+	public:
 		using iterator_category = std::input_iterator_tag;
 		using value_type        = Message;
-		using reference         = Message&;
-		using pointer           = Message*;
+		using reference         = const Message&;
+		using pointer           = const Message*;
 
-		Iterator(const Iterator&) = default;
-		Iterator& operator=(const Iterator&) = default;
+		ChunkIterator(const ChunkIterator&) = default;
+		ChunkIterator& operator=(const ChunkIterator&) = default;
 
 		reference operator*() { return m_msg; }
 		pointer operator->() { return &m_msg; }
 
-		Iterator& operator++() { *this = m_reader->next(*this); return *this; }
-		Iterator operator++(int) { Iterator tmp = *this; ++(*this); return tmp; }
+		ChunkIterator& operator++();
+		ChunkIterator operator++(int) { ChunkIterator tmp = *this; ++(*this); return tmp; }
 
-		friend bool operator== (const Iterator& a, const Iterator& b) { return a.m_chunk == b.m_chunk && a.m_offset == b.m_offset; };
-		friend bool operator!= (const Iterator& a, const Iterator& b) { return a.m_chunk != b.m_chunk || a.m_chunk != b.m_chunk; };
+		friend bool operator== (const ChunkIterator& a, const ChunkIterator& b) { return a.m_d == b.m_d && a.m_idx == b.m_idx; };
+		friend bool operator!= (const ChunkIterator& a, const ChunkIterator& b) { return a.m_d != b.m_d || a.m_idx != b.m_idx; };
 
 	private:
-		explicit Iterator(BagReader* reader, int chunk, std::size_t offset)
-		 : m_reader{reader}
-		 , m_chunk{chunk}
-		 , m_offset{offset}
-		{
-			m_msg = reader->readMessage(chunk, offset);
-		}
+		friend class BagReader::Iterator;
 
-		BagReader* m_reader;
-		int m_chunk;
-		std::size_t m_offset;
+		ChunkIterator() {}
+		explicit ChunkIterator(const BagReader* reader, int chunk);
+
+		class Private;
+		std::shared_ptr<Private> m_d;
+		std::size_t m_idx = 0;
 		Message m_msg;
+	};
+
+	class Iterator
+	{
+	public:
+		using iterator_category = std::input_iterator_tag;
+		using value_type        = Message;
+		using reference         = const Message&;
+		using pointer           = const Message*;
+
+		Iterator(const Iterator&) = default;
+		Iterator& operator=(const Iterator&) = default;
+
+		reference operator*() { return *m_it; }
+		pointer operator->() { return &*m_it; }
+
+		Iterator& operator++();
+		Iterator operator++(int) { Iterator tmp = *this; ++(*this); return tmp; }
+
+		friend bool operator== (const Iterator& a, const Iterator& b) { return a.m_chunk == b.m_chunk && a.m_it == b.m_it; };
+		friend bool operator!= (const Iterator& a, const Iterator& b) { return a.m_chunk != b.m_chunk || a.m_it != b.m_it; };
+
+	private:
+		friend class BagReader;
+
+		Iterator() {}
+		explicit Iterator(const BagReader* reader, int chunk);
+
+		const BagReader* m_reader;
+		int m_chunk = -1;
+		ChunkIterator m_it;
 	};
 
 	explicit BagReader(const std::string& filename);
@@ -110,7 +151,7 @@ public:
 	BagReader(const BagReader&) = delete;
 	BagReader& operator=(const BagReader&) = delete;
 
-	const ConnectionMap& connections();
+	const ConnectionMap& connections() const;
 
 	ros::Time startTime() const;
 	ros::Time endTime() const;
@@ -121,13 +162,63 @@ public:
 	Iterator end() const;
 
 private:
-	Message readMessage(int chunk, std::size_t offset);
-	Iterator next(const Iterator& current);
-
 	class Private;
 	std::unique_ptr<Private> m_d;
 };
 
+}
+
+namespace ros
+{
+namespace message_traits
+{
+template<> struct IsMessage<rosbag_fancy::BagReader::Message> : TrueType { };
+
+template<>
+struct MD5Sum<rosbag_fancy::BagReader::Message>
+{
+	static const char* value(const rosbag_fancy::BagReader::Message& m)
+	{
+		return m.connection->md5sum.c_str();
+	}
+};
+
+template<>
+struct DataType<rosbag_fancy::BagReader::Message>
+{
+	static const char* value(const rosbag_fancy::BagReader::Message& m)
+	{
+		return m.connection->type.c_str();
+	}
+};
+
+template<>
+struct Definition<rosbag_fancy::BagReader::Message>
+{
+	static const char* value(const rosbag_fancy::BagReader::Message& m)
+	{
+		return m.connection->msgDef.c_str();
+	}
+};
+}
+
+namespace serialization
+{
+template<>
+struct Serializer<rosbag_fancy::BagReader::Message>
+{
+	template<typename Stream>
+	inline static void write(Stream& stream, const rosbag_fancy::BagReader::Message& t)
+	{
+		std::memcpy(stream.advance(t.m_size), t.m_data, t.m_size);
+	}
+
+	inline static uint32_t serializedLength(const rosbag_fancy::BagReader::Message& t)
+	{
+		return t.m_size;
+	}
+};
+}
 }
 
 #endif

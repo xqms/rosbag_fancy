@@ -8,6 +8,8 @@
 
 #include <sys/mman.h>
 
+#include <bzlib.h>
+
 #include <fcntl.h>
 
 #include <set>
@@ -71,6 +73,7 @@ namespace
 		static_assert(sizeof(ConnectionInfo) == 8, "ConnectionInfo should have size 8");
 
 		uint8_t* chunkStart;
+		std::size_t chunkCompressedSize = 0;
 
 		ros::Time startTime;
 		ros::Time endTime;
@@ -249,6 +252,122 @@ public:
 	ros::Time endTime;
 };
 
+class BagReader::ChunkIterator::Private
+{
+public:
+	enum class Compression
+	{
+		None,
+		BZ2,
+		LZ4
+	};
+
+	const BagReader* m_reader{};
+	std::size_t m_chunk = 0;
+
+	Compression m_compression;
+	bz_stream m_bzStream{};
+
+	uint8_t* m_dataPtr = {};
+	std::size_t m_remaining = 0;
+};
+
+BagReader::ChunkIterator::ChunkIterator(const BagReader* reader, int chunk)
+ : m_d{std::make_unique<Private>()}
+{
+	m_d->m_reader = reader;
+	m_d->m_chunk = chunk;
+
+	auto& chunkData = reader->m_d->chunks[chunk];
+	auto rec = readRecord(chunkData.chunkStart, chunkData.chunkCompressedSize);
+
+	std::string compression = rec.stringHeader("compression");
+	if(compression == "none")
+		m_d->m_compression = Private::Compression::None;
+	else if(compression == "bz2")
+		m_d->m_compression = Private::Compression::BZ2;
+	else if(compression == "lz4")
+		m_d->m_compression = Private::Compression::LZ4;
+	else
+		throw Exception{fmt::format("Unknown compression type '{}'", compression)};
+
+	if(m_d->m_compression != Private::Compression::None)
+		throw Exception{"Only uncompressed chunks supported for now"};
+
+	m_d->m_dataPtr = rec.dataBegin;
+	m_d->m_remaining = rec.dataSize;
+
+	(*this)++;
+}
+
+BagReader::ChunkIterator& BagReader::ChunkIterator::operator++()
+{
+	if(!m_d)
+		return *this;
+
+	while(true)
+	{
+		if(m_d->m_remaining == 0)
+		{
+			m_d.reset();
+			m_idx = 0;
+			return *this;
+		}
+
+		auto rec = readRecord(m_d->m_dataPtr, m_d->m_remaining);
+
+		m_d->m_remaining -= (rec.end - m_d->m_dataPtr);
+		m_d->m_dataPtr = rec.end;
+
+		if(rec.op == 0x02)
+		{
+			m_msg.m_data = rec.dataBegin;
+			m_msg.m_size = rec.dataSize;
+
+			uint32_t connID = rec.integralHeader<uint32_t>("conn");
+			if(connID > m_d->m_reader->connections().size())
+				throw Exception{fmt::format("Invalid connection ID {}", connID)};
+
+			m_msg.connection = &m_d->m_reader->connections().at(connID);
+
+			uint64_t time = rec.integralHeader<uint64_t>("time");
+			m_msg.stamp = ros::Time(time & 0xFFFFFFFF, time >> 32);
+
+			break;
+		}
+	}
+
+	return *this;
+}
+
+BagReader::Iterator::Iterator(const BagReader* reader, int chunk)
+ : m_reader{reader}
+ , m_chunk{chunk}
+ , m_it{reader, chunk}
+{
+}
+
+BagReader::Iterator& BagReader::Iterator::operator++()
+{
+	m_it++;
+	if(m_it == ChunkIterator{})
+	{
+		m_chunk++;
+		if(m_chunk < static_cast<int>(m_reader->m_d->chunks.size()))
+		{
+			m_it = ChunkIterator{m_reader, m_chunk};
+		}
+		else
+		{
+			m_chunk = -1;
+			m_it = {};
+		}
+	}
+
+	return *this;
+}
+
+
 BagReader::BagReader(const std::string& filename)
  : m_d{std::make_unique<Private>(filename)}
 {
@@ -333,6 +452,7 @@ BagReader::BagReader(const std::string& filename)
 
 	// Chunk infos
 	m_d->chunks.reserve(chunkCount);
+	Chunk* lastChunk = {};
 	for(std::size_t i = 0; i < chunkCount; ++i)
 	{
 		Record rec = readRecord(rptr, remaining);
@@ -350,6 +470,8 @@ BagReader::BagReader(const std::string& filename)
 			throw Exception{"chunk_pos points outside of valid range"};
 
 		chunk.chunkStart = m_d->data + chunkPos;
+		if(lastChunk)
+			lastChunk->chunkCompressedSize = chunk.chunkStart - lastChunk->chunkStart;
 
 		std::uint64_t startTime = rec.integralHeader<std::uint64_t>("start_time");
 		std::uint64_t endTime = rec.integralHeader<std::uint64_t>("end_time");
@@ -376,7 +498,10 @@ BagReader::BagReader(const std::string& filename)
 
 		rptr = rec.end;
 		remaining = m_d->size - (rptr - m_d->data);
+		lastChunk = &chunk;
 	}
+	if(lastChunk)
+		lastChunk->chunkCompressedSize = (m_d->data + m_d->size) - lastChunk->chunkStart;
 
 	if(!m_d->chunks.empty())
 		m_d->startTime = m_d->chunks.front().startTime;
@@ -392,7 +517,7 @@ BagReader::~BagReader()
 {
 }
 
-const BagReader::ConnectionMap& BagReader::connections()
+const BagReader::ConnectionMap& BagReader::connections() const
 {
 	return m_d->connections;
 }
@@ -411,5 +536,19 @@ std::size_t BagReader::size() const
 {
 	return m_d->size;
 }
+
+BagReader::Iterator BagReader::begin() const
+{
+	if(m_d->chunks.empty())
+		return {};
+
+	return Iterator{this, 0};
+}
+
+BagReader::Iterator BagReader::end() const
+{
+	return Iterator();
+}
+
 
 }
