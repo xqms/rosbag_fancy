@@ -29,6 +29,10 @@ add_executable(rosbag_fancy
 	src/topic_subscriber.cpp
 	src/topic_manager.cpp
 	src/ui.cpp
+	src/mem_str.cpp
+	src/cmd_info.cpp
+	src/cmd_play.cpp
+	src/cmd_record.cpp
 )
 target_link_libraries(rosbag_fancy
 	${catkin_LIBRARIES}
