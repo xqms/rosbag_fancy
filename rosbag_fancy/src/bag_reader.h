@@ -44,6 +44,12 @@ public:
 
 	using ConnectionMap = std::map<std::uint32_t, Connection>;
 
+	struct ConnectionInfo
+	{
+		std::uint32_t id;
+		std::uint32_t msgCount;
+	};
+
 	class ChunkIterator;
 	class Iterator;
 
@@ -135,6 +141,11 @@ public:
 		friend bool operator== (const Iterator& a, const Iterator& b) { return a.m_chunk == b.m_chunk && a.m_it == b.m_it; };
 		friend bool operator!= (const Iterator& a, const Iterator& b) { return a.m_chunk != b.m_chunk || a.m_it != b.m_it; };
 
+		std::vector<ConnectionInfo>& currentChunkConnections() const;
+		void skipChunk();
+		int chunk() const
+		{ return m_chunk; }
+
 	private:
 		friend class BagReader;
 
@@ -164,6 +175,9 @@ public:
 	Iterator end() const;
 	Iterator findTime(const ros::Time& time) const;
 
+	std::size_t numChunks() const;
+	std::vector<ConnectionInfo>& chunkConnections(std::size_t chunk) const;
+	int findChunk(const ros::Time& time) const;
 private:
 	class Private;
 	std::unique_ptr<Private> m_d;

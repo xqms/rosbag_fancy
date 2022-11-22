@@ -65,12 +65,7 @@ namespace
 
 	struct Chunk
 	{
-		struct ConnectionInfo
-		{
-			std::uint32_t id;
-			std::uint32_t msgCount;
-		};
-		static_assert(sizeof(ConnectionInfo) == 8, "ConnectionInfo should have size 8");
+		static_assert(sizeof(rosbag_fancy::BagReader::ConnectionInfo) == 8, "ConnectionInfo should have size 8");
 
 		uint8_t* chunkStart;
 		std::size_t chunkCompressedSize = 0;
@@ -78,7 +73,7 @@ namespace
 		ros::Time startTime;
 		ros::Time endTime;
 
-		std::vector<ConnectionInfo> connectionInfos;
+		std::vector<rosbag_fancy::BagReader::ConnectionInfo> connectionInfos;
 	};
 
 	std::map<std::string, Span> readHeader(uint8_t* base, std::size_t remainingSize)
