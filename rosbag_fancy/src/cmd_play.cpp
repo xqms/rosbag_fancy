@@ -15,6 +15,7 @@
 #include <rosgraph_msgs/Clock.h>
 
 #include "bag_reader.h"
+#include "bag_view.h"
 #include "topic_manager.h"
 #include "ui.h"
 
@@ -87,7 +88,6 @@ int play(const std::vector<std::string>& options)
 		{}
 
 		BagReader reader;
-		BagReader::Iterator it;
 		std::unordered_map<int, ros::Publisher> publishers;
 	};
 
@@ -133,8 +133,9 @@ int play(const std::vector<std::string>& options)
 		}
 	}
 
+	BagView view;
 	for(auto& bag : bags)
-		bag.it = bag.reader.begin();
+		view.addBag(&bag.reader);
 
 	ros::WallDuration(0.2).sleep();
 
@@ -146,6 +147,8 @@ int play(const std::vector<std::string>& options)
 
 	bool paused = false;
 
+	BagView::Iterator it = view.begin();
+
 	if(!vm.count("no-ui"))
 	{
 		ui.reset(new PlaybackUI{topicManager, startTime, endTime});
@@ -154,15 +157,13 @@ int play(const std::vector<std::string>& options)
 			currentTime += ros::Duration{5.0};
 			bagRefTime += ros::Duration{5.0};
 
-			for(auto& bag : bags)
-				bag.it = bag.reader.findTime(currentTime);
+			it = view.findTime(currentTime);
 		});
 		ui->seekBackwardRequested.connect([&](){
 			currentTime -= ros::Duration{5.0};
 			bagRefTime -= ros::Duration{5.0};
 
-			for(auto& bag : bags)
-				bag.it = bag.reader.findTime(currentTime);
+			it = view.findTime(currentTime);
 		});
 		ui->pauseRequested.connect([&](){
 			paused = !paused;
@@ -177,22 +178,10 @@ int play(const std::vector<std::string>& options)
 			ros::WallDuration{0.1}.sleep();
 		else
 		{
-			ros::Time earliestStamp;
-			Bag* earliestBag = nullptr;
+			if(it == view.end())
+				break;
 
-			for(auto& bag : bags)
-			{
-				if(bag.it == bag.reader.end())
-					continue;
-
-				if(!earliestBag || bag.it->stamp < earliestStamp)
-				{
-					earliestBag = &bag;
-					earliestStamp = bag.it->stamp;
-				}
-			}
-
-			auto& msg = *earliestBag->it;
+			auto& msg = *it->msg;
 
 			if(msg.stamp < bagRefTime)
 				continue;
@@ -203,7 +192,7 @@ int play(const std::vector<std::string>& options)
 			currentTime = msg.stamp;
 			ui->setPositionInBag(msg.stamp);
 
-			earliestBag->publishers[msg.connection->id].publish(msg);
+			bags[it->bagIndex].publishers[msg.connection->id].publish(msg);
 
 			auto& topic = topicManager.topics()[topicMap[msg.connection->topicInBag]];
 			topic.notifyMessage(msg.size());
@@ -216,7 +205,7 @@ int play(const std::vector<std::string>& options)
 				lastClockPublishTime = wallStamp;
 			}
 
-			++earliestBag->it;
+			++it;
 		}
 
 		ros::spinOnce();

@@ -12,13 +12,22 @@ namespace rosbag_fancy
 class BagView
 {
 public:
+	class Iterator;
+
+	class MultiBagMessage
+	{
+	public:
+		const BagReader::Message* msg = {};
+		unsigned int bagIndex = 0;
+	};
+
 	class Iterator
 	{
 	public:
 		using iterator_category = std::input_iterator_tag;
 		using value_type        = BagReader::Message;
-		using reference         = const BagReader::Message&;
-		using pointer           = const BagReader::Message*;
+		using reference         = const MultiBagMessage&;
+		using pointer           = const MultiBagMessage*;
 
 		Iterator() {}
 		~Iterator();
