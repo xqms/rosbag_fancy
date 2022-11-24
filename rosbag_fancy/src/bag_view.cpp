@@ -18,7 +18,12 @@ public:
 		for(auto& conn : reader->connections())
 		{
 			if(connectionPredicate(conn.second))
-				handle.connectionIDs.push_back(conn.second.id);
+			{
+				if(handle.connectionIDs.size() <= conn.first)
+					handle.connectionIDs.resize(conn.first+1, false);
+
+				handle.connectionIDs[conn.first] = true;
+			}
 		}
 	}
 
@@ -36,7 +41,7 @@ private:
 	{
 		BagReader* reader;
 		bool filtering;
-		std::vector<uint32_t> connectionIDs;
+		std::vector<bool> connectionIDs;
 	};
 	std::vector<BagHandle> m_bags;
 };
@@ -44,7 +49,7 @@ private:
 class BagView::Iterator::Private
 {
 public:
-	Private(BagView::Private* view)
+	Private(const BagView::Private* view)
 	{
 		for(auto& handle : view->m_bags)
 		{
@@ -54,9 +59,19 @@ public:
 		}
 	}
 
+	Private(const BagView::Private* view, const ros::Time& time)
+	{
+		for(auto& handle : view->m_bags)
+		{
+			auto& state = m_state.emplace_back();
+			state.handle = &handle;
+			state.it = handle.reader->findTime(time);
+		}
+	}
+
 	struct BagState
 	{
-		BagView::Private::BagHandle* handle;
+		const BagView::Private::BagHandle* handle;
 		int chunk = -1;
 		BagReader::Iterator it;
 	};
@@ -64,6 +79,16 @@ public:
 	std::vector<BagState> m_state;
 	BagState* m_nextBag{};
 };
+
+BagView::Iterator::Iterator(const BagView* view)
+ : m_d{std::make_shared<Private>(view->m_d.get())}
+{
+}
+
+BagView::Iterator::Iterator(const BagView* view, const ros::Time& time)
+ : m_d{std::make_shared<Private>(view->m_d.get(), time)}
+{
+}
 
 BagView::Iterator::~Iterator()
 {}
@@ -82,8 +107,57 @@ BagView::Iterator& BagView::Iterator::operator++()
 		return *this;
 
 	if(m_d->m_nextBag)
-		++m_d->m_nextBag->it;
+	{
+		auto* bag = m_d->m_nextBag;
 
+		// Do one increment so we do not check the current message again
+		++bag->it;
+
+		// We need to skip to the next valid message in this bag.
+		auto messageIsInteresting = [&](const BagReader::Message& msg){
+			return bag->handle->connectionIDs[msg.connection->id];
+		};
+
+		while(bag->it != bag->handle->reader->end() && !messageIsInteresting(*bag->it))
+		{
+			if(bag->it.chunk() != bag->chunk)
+			{
+				// We advanced into the next (or the first) chunk. This is an opportunity to skip a whole chunk ahead!
+				auto chunkIsInteresting = [&](const std::vector<BagReader::ConnectionInfo>& connections){
+					return std::any_of(connections.begin(), connections.end(), [&](auto& con){
+						return con.msgCount != 0 && bag->handle->connectionIDs[con.id];
+					});
+				};
+
+				int numChunks = bag->handle->reader->numChunks();
+				while(true)
+				{
+					if(chunkIsInteresting(bag->it.currentChunkConnections()))
+						break;
+
+					if(bag->it.chunk() >= numChunks-1)
+					{
+						// Arrived at the end
+						bag->it = bag->handle->reader->end();
+					}
+					else
+					{
+						// Try next chunk
+						bag->it = bag->handle->reader->chunkBegin(bag->it.chunk() + 1);
+					}
+				}
+
+				bag->chunk = bag->it.chunk();
+			}
+			else
+			{
+				// Just increment and look at the next message!
+				++bag->it;
+			}
+		}
+	}
+
+	// Figure out the earliest available message from all the bags
 	ros::Time earliestStamp;
 	m_d->m_nextBag = nullptr;
 
@@ -118,7 +192,27 @@ BagView::~BagView()
 
 void BagView::addBag(BagReader* reader, const std::function<bool(const BagReader::Connection&)>& connectionPredicate)
 {
+	m_d->addBag(reader, connectionPredicate);
+}
 
+void BagView::addBag(BagReader* reader)
+{
+	m_d->addBag(reader);
+}
+
+BagView::Iterator BagView::begin() const
+{
+	return BagView::Iterator{this};
+}
+
+BagView::Iterator BagView::end() const
+{
+	return {};
+}
+
+BagView::Iterator BagView::findTime(const ros::Time& time) const
+{
+	return BagView::Iterator{this, time};
 }
 
 }

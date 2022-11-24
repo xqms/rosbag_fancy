@@ -33,6 +33,7 @@ add_executable(rosbag_fancy
 	src/cmd_info.cpp
 	src/cmd_play.cpp
 	src/cmd_record.cpp
+	src/bag_view.cpp
 )
 target_link_libraries(rosbag_fancy
 	${catkin_LIBRARIES}

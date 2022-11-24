@@ -176,8 +176,9 @@ public:
 	Iterator findTime(const ros::Time& time) const;
 
 	std::size_t numChunks() const;
-	std::vector<ConnectionInfo>& chunkConnections(std::size_t chunk) const;
+
 	int findChunk(const ros::Time& time) const;
+	Iterator chunkBegin(int chunk) const;
 private:
 	class Private;
 	std::unique_ptr<Private> m_d;

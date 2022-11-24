@@ -37,6 +37,10 @@ public:
 
 	private:
 		friend class BagView;
+
+		explicit Iterator(const BagView* view);
+		Iterator(const BagView* view, const ros::Time& time);
+
 		class Private;
 		std::shared_ptr<Private> m_d;
 	};
@@ -50,9 +54,9 @@ public:
 	void addBag(BagReader* reader);
 	void addBag(BagReader* reader, const std::function<bool(const BagReader::Connection&)>& connectionPredicate);
 
-	Iterator begin();
-	Iterator end();
-	Iterator findTime(const ros::Time& time);
+	Iterator begin() const;
+	Iterator end() const;
+	Iterator findTime(const ros::Time& time) const;
 
 private:
 	friend class Iterator::Private;

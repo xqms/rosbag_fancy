@@ -362,6 +362,11 @@ BagReader::Iterator& BagReader::Iterator::operator++()
 	return *this;
 }
 
+std::vector<BagReader::ConnectionInfo>& BagReader::Iterator::currentChunkConnections() const
+{
+	return m_reader->m_d->chunks[m_chunk].connectionInfos;
+}
+
 
 BagReader::BagReader(const std::string& filename)
  : m_d{std::make_unique<Private>(filename)}
@@ -476,11 +481,11 @@ BagReader::BagReader(const std::string& filename)
 
 		auto numConnections = rec.integralHeader<std::uint32_t>("count");
 
-		if(rec.dataSize < numConnections * sizeof(Chunk::ConnectionInfo))
+		if(rec.dataSize < numConnections * sizeof(ConnectionInfo))
 			throw Exception{"Chunk info is too small"};
 
 		chunk.connectionInfos.resize(numConnections);
-		std::memcpy(chunk.connectionInfos.data(), rec.dataBegin, numConnections * sizeof(Chunk::ConnectionInfo));
+		std::memcpy(chunk.connectionInfos.data(), rec.dataBegin, numConnections * sizeof(ConnectionInfo));
 
 		for(auto& connInfo : chunk.connectionInfos)
 		{
@@ -571,6 +576,19 @@ BagReader::Iterator BagReader::findTime(const ros::Time& time) const
 	}
 
 	return it;
+}
+
+BagReader::Iterator BagReader::chunkBegin(int chunk) const
+{
+	if(chunk < 0 || chunk >= static_cast<int>(m_d->chunks.size()))
+		return {};
+
+	return Iterator{this, chunk};
+}
+
+std::size_t BagReader::numChunks() const
+{
+	return m_d->chunks.size();
 }
 
 }
