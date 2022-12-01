@@ -3,6 +3,11 @@
 
 #include "bag_view.h"
 
+#include <rosbag/bag.h>
+#include <std_msgs/Header.h>
+#include <std_msgs/UInt8.h>
+#include "doctest.h"
+
 namespace rosbag_fancy
 {
 
@@ -77,7 +82,9 @@ public:
 			auto& state = m_state.emplace_back();
 			state.handle = &handle;
 			state.it = handle.reader->begin();
-			state.skipToNext();
+
+			if(handle.filtering)
+				state.skipToNext();
 		}
 	}
 
@@ -88,7 +95,9 @@ public:
 			auto& state = m_state.emplace_back();
 			state.handle = &handle;
 			state.it = handle.reader->findTime(time);
-			state.skipToNext();
+
+			if(handle.filtering)
+				state.skipToNext();
 		}
 	}
 
@@ -186,7 +195,8 @@ BagView::Iterator& BagView::Iterator::operator++()
 		++bag->it;
 
 		// We need to skip to the next valid message in this bag.
-		bag->skipToNext();
+		if(bag->handle->filtering)
+			bag->skipToNext();
 	}
 
 	// Figure out the earliest available message from all the bags
@@ -275,6 +285,105 @@ BagView::Iterator BagView::end() const
 BagView::Iterator BagView::findTime(const ros::Time& time) const
 {
 	return BagView::Iterator{this, time};
+}
+
+
+TEST_CASE("BagView: One file")
+{
+	// Generate a bag file
+	char bagfileName[] = "/tmp/rosbag_fancy_test_XXXXXX";
+	{
+		int fd = mkstemp(bagfileName);
+		REQUIRE(fd >= 0);
+		close(fd);
+
+		rosbag::Bag bag{bagfileName, rosbag::BagMode::Write};
+
+		{
+			std_msgs::Header msg;
+			msg.frame_id = "a";
+			bag.write("/topicA", ros::Time(1000, 0), msg);
+		}
+		{
+			std_msgs::Header msg;
+			msg.frame_id = "b";
+			bag.write("/topicB", ros::Time(1001, 0), msg);
+		}
+		{
+			std_msgs::UInt8 msg;
+			msg.data = 123;
+			bag.write("/topicC", ros::Time(1002, 0), msg);
+		}
+
+		bag.close();
+	}
+
+	// Open bagfile
+	BagReader reader{bagfileName};
+
+	SUBCASE("No selection")
+	{
+		BagView view;
+		view.addBag(&reader);
+
+		auto it = view.begin();
+
+		REQUIRE(it != view.end());
+		CHECK(it->msg->connection->topicInBag == "/topicA");
+
+		++it; REQUIRE(it != view.end());
+		CHECK(it->msg->connection->topicInBag == "/topicB");
+
+		++it; REQUIRE(it != view.end());
+		CHECK(it->msg->connection->topicInBag == "/topicC");
+
+		++it; CHECK(it == view.end());
+	}
+
+	SUBCASE("select by topic")
+	{
+		BagView view;
+		view.addBag(&reader, [&](const BagReader::Connection& con){
+			return con.topicInBag == "/topicB";
+		});
+
+		int num = 0;
+		for(auto& pmsg : view)
+		{
+			CHECK(pmsg.msg->connection->topicInBag == "/topicB");
+
+			auto msg = pmsg.msg->instantiate<std_msgs::Header>();
+			REQUIRE(msg);
+			CHECK(msg->frame_id == "b");
+			num++;
+		}
+
+		CHECK(num == 1);
+	}
+
+	SUBCASE("select by type")
+	{
+		BagView view;
+		view.addBag(&reader, [&](const BagReader::Connection& con){
+			return con.type == "std_msgs/UInt8";
+		});
+
+		int num = 0;
+		for(auto& pmsg : view)
+		{
+			CHECK(pmsg.msg->connection->topicInBag == "/topicC");
+
+			auto msg = pmsg.msg->instantiate<std_msgs::UInt8>();
+			REQUIRE(msg);
+			CHECK(msg->data == 123);
+			num++;
+		}
+
+		CHECK(num == 1);
+	}
+
+	// Remove temp file
+	unlink(bagfileName);
 }
 
 }

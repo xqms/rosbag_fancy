@@ -9,7 +9,11 @@
 #include <thread>
 #include <condition_variable>
 
+#include <rosbag/bag.h>
+
 #include "bag_view.h"
+
+#include "doctest.h"
 
 namespace rosbag_fancy
 {
@@ -55,10 +59,14 @@ public:
 		bool newMessage = false;
 
 		// If we made a skip back in time, reset the cache idx
-		if(!m_msgs.empty() && m_msgs[m_cacheIdx].stamp > time)
+		if(m_msgs[m_cacheIdx].stamp > time)
 		{
 			m_cacheIdx = 0;
 			newMessage = true;
+
+			// If time is earlier than the first entry, we have no transforms.
+			if(m_msgs[m_cacheIdx].stamp > time)
+				return &m_emptyMessage;
 		}
 
 		// Advance
@@ -146,7 +154,9 @@ private:
 
 	std::thread m_thread;
 
-	mutable unsigned int m_cacheIdx = 0;
+	unsigned int m_cacheIdx = 0;
+
+	tf2_msgs::TFMessage m_emptyMessage{};
 };
 
 TF2Scanner::TF2Scanner(const std::vector<BagReader*>& readers)
@@ -154,9 +164,98 @@ TF2Scanner::TF2Scanner(const std::vector<BagReader*>& readers)
 {
 }
 
+TF2Scanner::~TF2Scanner()
+{
+}
+
 const tf2_msgs::TFMessage* TF2Scanner::fetchUpdate(const ros::Time& time)
 {
 	return m_d->fetchUpdate(time);
+}
+
+
+// TESTS
+
+TEST_CASE("TF2Scanner")
+{
+	// Generate a bag file
+	// NOTE: This generates a bag file which is slightly different, since
+	// the latch=true header is not set for tf_static messages.
+	// For the purpose of testing the above, this is enough, however.
+	char bagfileName[] = "/tmp/rosbag_fancy_test_XXXXXX";
+	{
+		int fd = mkstemp(bagfileName);
+		REQUIRE(fd >= 0);
+		close(fd);
+
+		rosbag::Bag bag{bagfileName, rosbag::BagMode::Write};
+
+		{
+			std_msgs::Header msg;
+			msg.frame_id = "a";
+			bag.write("/topicA", ros::Time(1000, 0), msg);
+		}
+		{
+			std_msgs::Header msg;
+			msg.frame_id = "b";
+			bag.write("/topicB", ros::Time(1001, 0), msg);
+		}
+		{
+			tf2_msgs::TFMessage msg;
+			msg.transforms.resize(2);
+			msg.transforms[0].header.frame_id = "base_link";
+			msg.transforms[0].child_frame_id = "arm_link";
+			msg.transforms[0].transform.translation.x = 1.0;
+			msg.transforms[1].header.frame_id = "base_link";
+			msg.transforms[1].child_frame_id = "leg_link";
+			msg.transforms[1].transform.translation.x = 4.0;
+			bag.write("/tf_static", ros::Time(1002, 0), msg);
+		}
+		{
+			tf2_msgs::TFMessage msg;
+			msg.transforms.resize(1);
+			msg.transforms[0].header.frame_id = "base_link";
+			msg.transforms[0].child_frame_id = "arm_link";
+			msg.transforms[0].transform.translation.x = 2.0;
+			bag.write("/tf_static", ros::Time(1010, 0), msg);
+		}
+
+		bag.close();
+	}
+
+	BagReader reader{bagfileName};
+
+	TF2Scanner scanner{{&reader}};
+
+	{
+		auto msg = scanner.fetchUpdate(ros::Time(0));
+		REQUIRE(msg);
+		CHECK(msg->transforms.size() == 0);
+	}
+	{
+		auto msg = scanner.fetchUpdate(ros::Time(1005));
+		REQUIRE(msg);
+		REQUIRE(msg->transforms.size() == 2);
+
+		auto it = std::find_if(msg->transforms.begin(), msg->transforms.end(), [&](auto& trans){ return trans.child_frame_id == "arm_link"; });
+		REQUIRE(it != msg->transforms.end());
+		CHECK(it->transform.translation.x == doctest::Approx(1.0));
+	}
+	{
+		auto msg = scanner.fetchUpdate(ros::Time(1006));
+		REQUIRE(!msg);
+	}
+	{
+		auto msg = scanner.fetchUpdate(ros::Time(1012));
+		REQUIRE(msg);
+		REQUIRE(msg->transforms.size() == 2);
+
+		auto it = std::find_if(msg->transforms.begin(), msg->transforms.end(), [&](auto& trans){ return trans.child_frame_id == "arm_link"; });
+		REQUIRE(it != msg->transforms.end());
+		CHECK(it->transform.translation.x == doctest::Approx(2.0));
+	}
+
+	unlink(bagfileName);
 }
 
 }

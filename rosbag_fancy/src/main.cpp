@@ -7,12 +7,11 @@
 
 #include <rosfmt/full.h>
 
-namespace po = boost::program_options;
-
 // Implemented in cmd_*.cpp
 int record(const std::vector<std::string>& options);
 int info(const std::vector<std::string>& options);
 int play(const std::vector<std::string>& options);
+int test(const std::vector<std::string>& options);
 
 int main(int argc, char** argv)
 {
@@ -25,6 +24,7 @@ int main(int argc, char** argv)
 			"  record: Record a bagfile\n"
 			"  info: Display information about a bagfile\n"
 			"  play: Play bagfile\n"
+			"  test: Run internal unit-tests\n"
 			"\n"
 			"See rosbag_fancy <command> --help for command-specific instructions.\n"
 			"\n"
@@ -53,6 +53,8 @@ int main(int argc, char** argv)
 		return info(arguments);
 	else if(cmd == "play")
 		return play(arguments);
+	else if(cmd == "test")
+		return test(arguments);
 	else
 	{
 		fmt::print(stderr, "Unknown command {}, see --help\n", cmd);

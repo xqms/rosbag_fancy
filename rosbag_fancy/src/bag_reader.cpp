@@ -53,11 +53,16 @@ namespace
 			return ret;
 		}
 
-		std::string stringHeader(const std::string& name)
+		std::string stringHeader(const std::string& name, const std::optional<std::string>& defaultValue = {})
 		{
 			auto it = headers.find(name);
 			if(it == headers.end())
-				throw Exception{fmt::format("Could not find header '{}' in record of type {}\n", name, op)};
+			{
+				if(defaultValue)
+					return *defaultValue;
+				else
+					throw Exception{fmt::format("Could not find header '{}' in record of type {}\n", name, op)};
+			}
 
 			return {reinterpret_cast<char*>(it->second.start), it->second.size};
 		}
@@ -421,7 +426,7 @@ BagReader::BagReader(const std::string& filename)
 		Connection con;
 		con.id = rec.integralHeader<uint32_t>("conn");
 		con.topicInBag = rec.stringHeader("topic");
-		con.topicAsPublished = recData.stringHeader("topic");
+		con.topicAsPublished = recData.stringHeader("topic", std::string{});
 		con.type = recData.stringHeader("type");
 		con.md5sum = recData.stringHeader("md5sum");
 		con.msgDef = recData.stringHeader("message_definition");
