@@ -58,3 +58,6 @@ catkin_add_env_hooks(50-rosbag_fancy
 install(TARGETS rosbag_fancy tf2_republisher
 	RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
+install(TARGETS rosbag_fancy
+	RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
+)

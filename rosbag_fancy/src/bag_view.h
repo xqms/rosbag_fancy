@@ -63,6 +63,9 @@ public:
 	void addBag(BagReader* reader);
 	void addBag(BagReader* reader, const std::function<bool(const BagReader::Connection&)>& connectionPredicate);
 
+	ros::Time startTime() const;
+	ros::Time endTime() const;
+
 	Iterator begin() const;
 	Iterator end() const;
 	Iterator findTime(const ros::Time& time) const;

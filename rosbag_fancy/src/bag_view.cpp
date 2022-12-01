@@ -34,6 +34,27 @@ public:
 		handle.filtering = false;
 	}
 
+	ros::Time startTime() const
+	{
+		if(m_bags.empty())
+			return {};
+
+		ros::Time start = m_bags.front().reader->startTime();
+		for(auto& bag : m_bags)
+			start = std::min(start, bag.reader->startTime());
+
+		return start;
+	}
+
+	ros::Time endTime() const
+	{
+		ros::Time end;
+		for(auto& bag : m_bags)
+			end = std::max(end, bag.reader->endTime());
+
+		return end;
+	}
+
 private:
 	friend class BagView::Iterator::Private;
 
@@ -229,6 +250,16 @@ void BagView::addBag(BagReader* reader, const std::function<bool(const BagReader
 void BagView::addBag(BagReader* reader)
 {
 	m_d->addBag(reader);
+}
+
+ros::Time BagView::startTime() const
+{
+	return m_d->startTime();
+}
+
+ros::Time BagView::endTime() const
+{
+	return m_d->endTime();
 }
 
 BagView::Iterator BagView::begin() const
