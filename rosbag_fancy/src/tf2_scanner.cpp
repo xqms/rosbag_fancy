@@ -56,13 +56,11 @@ public:
 		if(m_msgs.empty())
 			return {};
 
-		bool newMessage = false;
-
 		// If we made a skip back in time, reset the cache idx
 		if(m_msgs[m_cacheIdx].stamp > time)
 		{
 			m_cacheIdx = 0;
-			newMessage = true;
+			m_sentIdx = -1;
 
 			// If time is earlier than the first entry, we have no transforms.
 			if(m_msgs[m_cacheIdx].stamp > time)
@@ -73,11 +71,13 @@ public:
 		while(m_cacheIdx < m_msgs.size()-1 && m_msgs[m_cacheIdx+1].stamp < time)
 		{
 			m_cacheIdx++;
-			newMessage = true;
 		}
 
-		if(newMessage)
+		if(static_cast<int>(m_cacheIdx) != m_sentIdx)
+		{
+			m_sentIdx = m_cacheIdx;
 			return &m_msgs[m_cacheIdx].msg;
+		}
 		else
 			return {};
 	}
@@ -124,7 +124,7 @@ private:
 
 				auto& entry = m_msgs.emplace_back();
 				entry.stamp = pmsg.msg->stamp;
-				entry.msg.transforms.resize(transforms.size());
+				entry.msg.transforms.reserve(transforms.size());
 				for(auto& [_, transform] : transforms)
 					entry.msg.transforms.push_back(transform);
 
@@ -155,6 +155,7 @@ private:
 	std::thread m_thread;
 
 	unsigned int m_cacheIdx = 0;
+	int m_sentIdx = -1;
 
 	tf2_msgs::TFMessage m_emptyMessage{};
 };
@@ -230,11 +231,13 @@ TEST_CASE("TF2Scanner")
 	{
 		auto msg = scanner.fetchUpdate(ros::Time(0));
 		REQUIRE(msg);
+		CAPTURE(*msg);
 		CHECK(msg->transforms.size() == 0);
 	}
 	{
 		auto msg = scanner.fetchUpdate(ros::Time(1005));
 		REQUIRE(msg);
+		CAPTURE(*msg);
 		REQUIRE(msg->transforms.size() == 2);
 
 		auto it = std::find_if(msg->transforms.begin(), msg->transforms.end(), [&](auto& trans){ return trans.child_frame_id == "arm_link"; });
@@ -248,11 +251,28 @@ TEST_CASE("TF2Scanner")
 	{
 		auto msg = scanner.fetchUpdate(ros::Time(1012));
 		REQUIRE(msg);
+		CAPTURE(*msg);
 		REQUIRE(msg->transforms.size() == 2);
 
 		auto it = std::find_if(msg->transforms.begin(), msg->transforms.end(), [&](auto& trans){ return trans.child_frame_id == "arm_link"; });
 		REQUIRE(it != msg->transforms.end());
 		CHECK(it->transform.translation.x == doctest::Approx(2.0));
+	}
+
+	{
+		auto msg = scanner.fetchUpdate(ros::Time(1015));
+		REQUIRE(!msg);
+	}
+
+	{
+		auto msg = scanner.fetchUpdate(ros::Time(1005));
+		REQUIRE(msg);
+		CAPTURE(*msg);
+		REQUIRE(msg->transforms.size() == 2);
+
+		auto it = std::find_if(msg->transforms.begin(), msg->transforms.end(), [&](auto& trans){ return trans.child_frame_id == "arm_link"; });
+		REQUIRE(it != msg->transforms.end());
+		CHECK(it->transform.translation.x == doctest::Approx(1.0));
 	}
 
 	unlink(bagfileName);
