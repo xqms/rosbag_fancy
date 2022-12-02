@@ -18,6 +18,7 @@
 #include "bag_view.h"
 #include "topic_manager.h"
 #include "ui.h"
+#include "tf2_scanner.h"
 
 namespace po = boost::program_options;
 using namespace rosbag_fancy;
@@ -133,9 +134,21 @@ int play(const std::vector<std::string>& options)
 		}
 	}
 
-	BagView view;
+	std::vector<BagReader*> bagReaders;
 	for(auto& bag : bags)
-		view.addBag(&bag.reader);
+		bagReaders.push_back(&bag.reader);
+
+	TF2Scanner tf2Scanner{bagReaders};
+
+	ros::Publisher pub_tf_static = nh.advertise<tf2_msgs::TFMessage>("/tf_static", 20, true);
+
+	BagView view;
+	auto topicPredicate = [&](const BagReader::Connection& connection){
+		return connection.topicInBag != "/tf_static";
+	};
+
+	for(auto& bag : bags)
+		view.addBag(&bag.reader, topicPredicate);
 
 	ros::WallDuration(0.2).sleep();
 
@@ -162,6 +175,13 @@ int play(const std::vector<std::string>& options)
 		ui->seekBackwardRequested.connect([&](){
 			currentTime -= ros::Duration{5.0};
 			bagRefTime -= ros::Duration{5.0};
+
+			if(currentTime < startTime)
+			{
+				currentTime = startTime;
+				bagRefTime = currentTime;
+				wallRefTime = ros::SteadyTime::now();
+			}
 
 			it = view.findTime(currentTime);
 		});
@@ -204,6 +224,10 @@ int play(const std::vector<std::string>& options)
 				pub_clock.publish(msg);
 				lastClockPublishTime = wallStamp;
 			}
+
+			// Publish matching tf_static
+			if(auto tfmsg = tf2Scanner.fetchUpdate(currentTime))
+				pub_tf_static.publish(*tfmsg);
 
 			++it;
 		}
