@@ -14,4 +14,4 @@ jobs:
       - name: Compile
         run: '. /opt/ros/noetic/setup.sh && catkin build --cmake-args -DCMAKE_BUILD_TYPE=Debug'
       - name: Test
-        run: '. devel/setup.sh && rosbag_fancy test'
+        run: '. devel/setup.sh && rosrun rosbag_fancy rosbag_fancy test'
