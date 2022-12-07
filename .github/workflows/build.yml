@@ -4,7 +4,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: osrf/ros:noetic-ros-base
+      image: ros:noetic-ros-base-focal
     steps:
       - uses: actions/checkout@v3
         with:
