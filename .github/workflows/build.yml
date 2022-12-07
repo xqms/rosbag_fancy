@@ -13,5 +13,7 @@ jobs:
         run: 'apt-get update && rosdep update && rosdep install --from-path src --ignore-src -y && apt-get install -y python3-catkin-tools'
       - name: Compile
         run: '. /opt/ros/noetic/setup.sh && catkin build --cmake-args -DCMAKE_BUILD_TYPE=Debug'
+      - name: Inspect
+        run: 'find devel/'
       - name: Test
         run: '. devel/setup.sh && rosrun rosbag_fancy rosbag_fancy test'
