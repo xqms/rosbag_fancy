@@ -22,13 +22,11 @@ public:
 
 		for(auto& conn : reader->connections())
 		{
-			if(connectionPredicate(conn.second))
-			{
-				if(handle.connectionIDs.size() <= conn.first)
-					handle.connectionIDs.resize(conn.first+1, false);
+			if(handle.connectionIDs.size() <= conn.first)
+				handle.connectionIDs.resize(conn.first+1, false);
 
+			if(connectionPredicate(conn.second))
 				handle.connectionIDs[conn.first] = true;
-			}
 		}
 	}
 
