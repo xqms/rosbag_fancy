@@ -15,5 +15,7 @@ jobs:
         run: '. /opt/ros/noetic/setup.sh && catkin build --cmake-args -DCMAKE_BUILD_TYPE=Debug'
       - name: Inspect
         run: 'find devel/'
+      - name: Inspect 2
+        run: '. devel/setup.sh && set'
       - name: Test
         run: '. devel/setup.sh && rosrun rosbag_fancy rosbag_fancy test'
