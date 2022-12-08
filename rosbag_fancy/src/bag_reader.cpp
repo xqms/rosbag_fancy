@@ -15,6 +15,11 @@
 
 #include <set>
 
+#include <rosbag/bag.h>
+#include <std_msgs/Header.h>
+#include <std_msgs/UInt8.h>
+#include "doctest.h"
+
 namespace
 {
 	using Exception = rosbag_fancy::BagReader::Exception;
@@ -803,5 +808,63 @@ std::size_t BagReader::numChunks() const
 {
 	return m_d->chunks.size();
 }
+
+
+// TESTS
+
+TEST_CASE("BagView: One file")
+{
+	// Generate a bag file
+	char bagfileName[] = "/tmp/rosbag_fancy_test_XXXXXX";
+	{
+		int fd = mkstemp(bagfileName);
+		REQUIRE(fd >= 0);
+		close(fd);
+
+		rosbag::Bag bag{bagfileName, rosbag::BagMode::Write};
+
+		SUBCASE("plain")
+		{ bag.setCompression(rosbag::CompressionType::Uncompressed); }
+		SUBCASE("BZ2")
+		{ bag.setCompression(rosbag::CompressionType::BZ2); }
+		SUBCASE("LZ4")
+		{ bag.setCompression(rosbag::CompressionType::LZ4); }
+
+		{
+			std_msgs::Header msg;
+			msg.frame_id = "a";
+			bag.write("/topicA", ros::Time(1000, 0), msg);
+		}
+		{
+			std_msgs::Header msg;
+			msg.frame_id = "b";
+			bag.write("/topicB", ros::Time(1001, 0), msg);
+		}
+		{
+			std_msgs::UInt8 msg;
+			msg.data = 123;
+			bag.write("/topicC", ros::Time(1002, 0), msg);
+		}
+
+		bag.close();
+	}
+
+	// Open bagfile
+	BagReader reader{bagfileName};
+
+	auto it = reader.begin();
+
+	REQUIRE(it != reader.end());
+	CHECK(it->connection->topicInBag == "/topicA");
+
+	++it; REQUIRE(it != reader.end());
+	CHECK(it->connection->topicInBag == "/topicB");
+
+	++it; REQUIRE(it != reader.end());
+	CHECK(it->connection->topicInBag == "/topicC");
+
+	++it; CHECK(it == reader.end());
+}
+
 
 }
