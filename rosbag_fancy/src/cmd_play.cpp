@@ -190,6 +190,9 @@ int play(const std::vector<std::string>& options)
 			bagRefTime = currentTime;
 			wallRefTime = ros::SteadyTime::now();
 		});
+		ui->exitRequested.connect([&](){
+			ros::shutdown();
+		});
 	}
 
 	while(ros::ok())
@@ -250,6 +253,8 @@ int play(const std::vector<std::string>& options)
 			else if(ret != 0)
 				ui->handleInput();
 		}
+
+		ui->setPaused(paused);
 	}
 
 	return 0;

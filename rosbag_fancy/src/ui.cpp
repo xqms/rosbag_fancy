@@ -519,7 +519,37 @@ void PlaybackUI::draw()
 	}
 
 	printLine(cnt, "");
-	printLine(cnt, "Hit [space] for pause, [left]/[right] for seeking");
+
+	{
+		ros::SteadyTime now = ros::SteadyTime::now();
+
+		m_term.clearToEndOfLine();
+
+		fmt::print("Hit ");
+
+		if(m_paused)
+			m_term.setSimplePair(Terminal::Black, Terminal::White);
+		fmt::print("[space]");
+		m_term.setStandardColors();
+
+		fmt::print(" for pause, ");
+
+		if(now - m_lastSeekBwd < ros::WallDuration(0.5))
+			m_term.setSimplePair(Terminal::Black, Terminal::White);
+		fmt::print("[left]");
+		m_term.setStandardColors();
+
+		fmt::print("/");
+
+		if(now - m_lastSeekFwd < ros::WallDuration(0.5))
+			m_term.setSimplePair(Terminal::Black, Terminal::White);
+		fmt::print("[right]");
+		m_term.setStandardColors();
+
+		fmt::print(" for seeking\n");
+
+		cnt++;
+	}
 
 	g_statusLines = cnt;
 
@@ -537,6 +567,11 @@ void PlaybackUI::setPositionInBag(const ros::Time& stamp)
 	m_positionInBag = stamp;
 }
 
+void PlaybackUI::setPaused(bool paused)
+{
+	m_paused = paused;
+}
+
 void PlaybackUI::handleInput()
 {
 	int c = m_term.readKey();
@@ -547,12 +582,17 @@ void PlaybackUI::handleInput()
 	{
 		case Terminal::SK_Left:
 			seekBackwardRequested();
+			m_lastSeekBwd = ros::SteadyTime::now();
 			break;
 		case Terminal::SK_Right:
 			seekForwardRequested();
+			m_lastSeekFwd = ros::SteadyTime::now();
 			break;
 		case ' ':
 			pauseRequested();
+			break;
+		case 'q':
+			exitRequested();
 			break;
 	}
 }
