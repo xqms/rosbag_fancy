@@ -5,6 +5,7 @@
 
 #include <rosfmt/rosfmt.h>
 #include <fmt/ostream.h>
+#include <roslz4/lz4s.h>
 
 #include <sys/mman.h>
 
@@ -13,6 +14,11 @@
 #include <fcntl.h>
 
 #include <set>
+
+#include <rosbag/bag.h>
+#include <std_msgs/Header.h>
+#include <std_msgs/UInt8.h>
+#include "doctest.h"
 
 namespace
 {
@@ -262,6 +268,106 @@ public:
 		LZ4
 	};
 
+	enum class ReadResult
+	{
+		OK,
+		EndOfFile
+	};
+
+	~Private()
+	{
+		switch(m_compression)
+		{
+			case Compression::None:
+				break;
+			case Compression::BZ2:
+				BZ2_bzDecompressEnd(&m_bzStream);
+				break;
+			case Compression::LZ4:
+				break;
+		}
+	}
+
+	void readData(std::size_t amount)
+	{
+		switch(m_compression)
+		{
+			case Private::Compression::None:
+			case Private::Compression::LZ4:
+				return;
+			case Private::Compression::BZ2:
+			{
+				std::size_t offset = m_uncompressedBuffer.size();
+				m_uncompressedBuffer.resize(offset + amount);
+
+				m_bzStream.next_out = reinterpret_cast<char*>(m_uncompressedBuffer.data() + offset);
+				m_bzStream.avail_out = amount;
+				m_bzStream.total_out_lo32 = 0;
+
+				int ret = BZ2_bzDecompress(&m_bzStream);
+				if(m_bzStream.total_out_lo32 != amount)
+					throw Exception{"Compressed chunk data ends prematurely! (not enough output)"};
+
+				if(ret != BZ_STREAM_END && ret != BZ_OK)
+					throw Exception{fmt::format("BZ2 decoding error ({})", ret)};
+
+				return;
+			}
+		}
+
+		throw std::logic_error{"non-implemented compression mode"};
+	}
+
+	Record readRecord()
+	{
+		switch(m_compression)
+		{
+			case Compression::None:
+			case Compression::LZ4:
+			{
+				auto record = ::readRecord(m_dataPtr, m_remaining);
+				m_remaining -= (record.end - m_dataPtr);
+				m_dataPtr = record.end;
+
+				return record;
+			}
+
+			case Compression::BZ2:
+			{
+				Record record;
+
+				m_uncompressedBuffer.clear();
+				readData(4);
+
+				std::memcpy(&record.headerSize, m_uncompressedBuffer.data(), 4);
+				readData(record.headerSize + 4);
+
+				std::memcpy(&record.dataSize, m_uncompressedBuffer.data() + m_uncompressedBuffer.size() - 4, 4);
+				readData(record.dataSize);
+
+				record.headerBegin = m_uncompressedBuffer.data() + 4;
+				record.dataBegin = m_uncompressedBuffer.data() + 4 + record.headerSize + 4;
+
+				record.headers = readHeader(record.headerBegin, record.headerSize);
+
+				auto it = record.headers.find("op");
+				if(it == record.headers.end())
+					throw Exception{"Record without op header"};
+
+				if(it->second.size != 1)
+					throw Exception{fmt::format("op header has invalid size {}", it->second.size)};
+
+				record.op = it->second.start[0];
+
+				m_remaining -= m_uncompressedBuffer.size();
+
+				return record;
+			}
+		}
+
+		throw std::logic_error{"non-implemented compression mode"};
+	}
+
 	const BagReader* m_reader{};
 	std::size_t m_chunk = 0;
 
@@ -270,6 +376,8 @@ public:
 
 	uint8_t* m_dataPtr = {};
 	std::size_t m_remaining = 0;
+
+	std::vector<uint8_t> m_uncompressedBuffer;
 };
 
 BagReader::ChunkIterator::ChunkIterator(const BagReader* reader, int chunk)
@@ -291,11 +399,53 @@ BagReader::ChunkIterator::ChunkIterator(const BagReader* reader, int chunk)
 	else
 		throw Exception{fmt::format("Unknown compression type '{}'", compression)};
 
-	if(m_d->m_compression != Private::Compression::None)
-		throw Exception{"Only uncompressed chunks supported for now"};
+	switch(m_d->m_compression)
+	{
+		case Private::Compression::None:
+			m_d->m_dataPtr = rec.dataBegin;
+			m_d->m_remaining = rec.dataSize;
+			break;
 
-	m_d->m_dataPtr = rec.dataBegin;
-	m_d->m_remaining = rec.dataSize;
+		case Private::Compression::BZ2:
+		{
+			int ret = BZ2_bzDecompressInit(&m_d->m_bzStream, 0, 0);
+			if(ret != BZ_OK)
+				throw Exception{fmt::format("Could not initialize BZ2 decompression ({})", ret)};
+
+			m_d->m_bzStream.next_in = reinterpret_cast<char*>(rec.dataBegin);
+			m_d->m_bzStream.avail_in = rec.dataSize;
+
+			m_d->m_remaining = rec.integralHeader<std::uint32_t>("size");
+
+			break;
+		}
+
+		case Private::Compression::LZ4:
+		{
+			// roslz4's streaming capabilities are not flexible enough for the code path above.
+			// So for now, we just decode the entire chunk on the fly.
+
+			m_d->m_remaining = rec.integralHeader<std::uint32_t>("size");
+			m_d->m_uncompressedBuffer.resize(m_d->m_remaining);
+
+			unsigned int length = m_d->m_remaining;
+
+			int ret = roslz4_buffToBuffDecompress(
+				reinterpret_cast<char*>(rec.dataBegin), rec.dataSize,
+				reinterpret_cast<char*>(m_d->m_uncompressedBuffer.data()), &length
+			);
+
+			if(ret != ROSLZ4_OK)
+				throw Exception{fmt::format("Could not decode LZ4 chunk: {}", ret)};
+
+			if(m_d->m_remaining != length)
+				throw Exception{fmt::format("LZ4 size mismatch: got {}, expected {} bytes", length, m_d->m_remaining)};
+
+			m_d->m_dataPtr = m_d->m_uncompressedBuffer.data();
+
+			break;
+		}
+	}
 
 	(*this)++;
 }
@@ -314,10 +464,7 @@ BagReader::ChunkIterator& BagReader::ChunkIterator::operator++()
 			return *this;
 		}
 
-		auto rec = readRecord(m_d->m_dataPtr, m_d->m_remaining);
-
-		m_d->m_remaining -= (rec.end - m_d->m_dataPtr);
-		m_d->m_dataPtr = rec.end;
+		auto rec = m_d->readRecord();
 
 		if(rec.op == 0x02)
 		{
@@ -365,6 +512,72 @@ BagReader::Iterator& BagReader::Iterator::operator++()
 	}
 
 	return *this;
+}
+
+void BagReader::Iterator::advanceWithPredicates(const std::function<bool(const ConnectionInfo&)>& connPredicate, const std::function<bool(const Message&)>& messagePredicate)
+{
+	m_it++;
+
+	if(m_it == ChunkIterator{})
+	{
+		m_chunk++;
+
+		if(m_chunk == static_cast<int>(m_reader->m_d->chunks.size()))
+		{
+			m_chunk = -1;
+			m_it = {};
+			return;
+		}
+	}
+
+	findNextWithPredicates(connPredicate, messagePredicate);
+}
+
+void BagReader::Iterator::findNextWithPredicates(const std::function<bool(const ConnectionInfo&)>& connPredicate, const std::function<bool(const Message&)>& messagePredicate)
+{
+	auto currentChunkIsInteresting = [&](){
+		auto& chunkData = m_reader->m_d->chunks[m_chunk];
+		return std::any_of(chunkData.connectionInfos.begin(), chunkData.connectionInfos.end(), connPredicate);
+	};
+
+	while(true)
+	{
+		if(m_it == ChunkIterator{})
+		{
+			if(m_chunk == -1 || m_chunk == static_cast<int>(m_reader->m_d->chunks.size()))
+			{
+				m_chunk = -1;
+				return;
+			}
+
+			// Find next matching chunk
+			while(!currentChunkIsInteresting())
+			{
+				m_chunk++;
+				if(m_chunk >= static_cast<int>(m_reader->m_d->chunks.size()))
+				{
+					m_chunk = -1;
+					return;
+				}
+			}
+
+			m_it = ChunkIterator{m_reader, m_chunk};
+		}
+
+		// We are now in a chunk which contains interesting connections.
+
+		// Iterate through the chunk
+		while(m_it != ChunkIterator{})
+		{
+			if(messagePredicate(*m_it))
+				return; // Found something! *this is pointing at the message.
+
+			++m_it;
+		}
+
+		// Next chunk
+		m_chunk++;
+	}
 }
 
 std::vector<BagReader::ConnectionInfo>& BagReader::Iterator::currentChunkConnections() const
@@ -595,5 +808,63 @@ std::size_t BagReader::numChunks() const
 {
 	return m_d->chunks.size();
 }
+
+
+// TESTS
+
+TEST_CASE("BagView: One file")
+{
+	// Generate a bag file
+	char bagfileName[] = "/tmp/rosbag_fancy_test_XXXXXX";
+	{
+		int fd = mkstemp(bagfileName);
+		REQUIRE(fd >= 0);
+		close(fd);
+
+		rosbag::Bag bag{bagfileName, rosbag::BagMode::Write};
+
+		SUBCASE("plain")
+		{ bag.setCompression(rosbag::CompressionType::Uncompressed); }
+		SUBCASE("BZ2")
+		{ bag.setCompression(rosbag::CompressionType::BZ2); }
+		SUBCASE("LZ4")
+		{ bag.setCompression(rosbag::CompressionType::LZ4); }
+
+		{
+			std_msgs::Header msg;
+			msg.frame_id = "a";
+			bag.write("/topicA", ros::Time(1000, 0), msg);
+		}
+		{
+			std_msgs::Header msg;
+			msg.frame_id = "b";
+			bag.write("/topicB", ros::Time(1001, 0), msg);
+		}
+		{
+			std_msgs::UInt8 msg;
+			msg.data = 123;
+			bag.write("/topicC", ros::Time(1002, 0), msg);
+		}
+
+		bag.close();
+	}
+
+	// Open bagfile
+	BagReader reader{bagfileName};
+
+	auto it = reader.begin();
+
+	REQUIRE(it != reader.end());
+	CHECK(it->connection->topicInBag == "/topicA");
+
+	++it; REQUIRE(it != reader.end());
+	CHECK(it->connection->topicInBag == "/topicB");
+
+	++it; REQUIRE(it != reader.end());
+	CHECK(it->connection->topicInBag == "/topicC");
+
+	++it; CHECK(it == reader.end());
+}
+
 
 }

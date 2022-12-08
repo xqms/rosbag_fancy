@@ -7,6 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
 	rosbag_storage
 	roscpp
 	rosfmt
+	roslz4
 	topic_tools
 	tf2_ros
 )
@@ -17,6 +18,8 @@ include_directories(${catkin_INCLUDE_DIRS})
 
 find_package(Curses REQUIRED)
 include_directories(${CURSES_INCLUDE_DIRS})
+
+find_package(BZip2 REQUIRED)
 
 include_directories(contrib/doctest)
 
@@ -43,6 +46,7 @@ add_executable(rosbag_fancy
 target_link_libraries(rosbag_fancy
 	${catkin_LIBRARIES}
 	${CURSES_LIBRARIES}
+	BZip2::BZip2
 )
 
 # Tools

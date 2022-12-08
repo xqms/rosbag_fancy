@@ -82,7 +82,7 @@ public:
 			state.it = handle.reader->begin();
 
 			if(handle.filtering)
-				state.skipToNext();
+				state.skipToNext(false);
 		}
 	}
 
@@ -95,7 +95,7 @@ public:
 			state.it = handle.reader->findTime(time);
 
 			if(handle.filtering)
-				state.skipToNext();
+				state.skipToNext(false);
 		}
 	}
 
@@ -105,50 +105,20 @@ public:
 		int chunk = -1;
 		BagReader::Iterator it;
 
-		void skipToNext()
+		void skipToNext(bool advance)
 		{
 			// We need to skip to the next valid message in this bag.
 			auto messageIsInteresting = [&](const BagReader::Message& msg){
 				return handle->connectionIDs[msg.connection->id];
 			};
+			auto connectionIsInteresting = [&](const BagReader::ConnectionInfo& conn){
+				return handle->connectionIDs[conn.id];
+			};
 
-			while(it != handle->reader->end() && !messageIsInteresting(*it))
-			{
-				if(it.chunk() != chunk)
-				{
-					// We advanced into the next (or the first) chunk. This is an opportunity to skip a whole chunk ahead!
-					auto chunkIsInteresting = [&](const std::vector<BagReader::ConnectionInfo>& connections){
-						return std::any_of(connections.begin(), connections.end(), [&](auto& con){
-							return con.msgCount != 0 && handle->connectionIDs[con.id];
-						});
-					};
-
-					int numChunks = handle->reader->numChunks();
-					while(true)
-					{
-						if(chunkIsInteresting(it.currentChunkConnections()))
-							break;
-
-						if(it.chunk() >= numChunks-1)
-						{
-							// Arrived at the end
-							it = handle->reader->end();
-						}
-						else
-						{
-							// Try next chunk
-							it = handle->reader->chunkBegin(it.chunk() + 1);
-						}
-					}
-
-					chunk = it.chunk();
-				}
-				else
-				{
-					// Just increment and look at the next message!
-					++it;
-				}
-			}
+			if(advance)
+				it.advanceWithPredicates(connectionIsInteresting, messageIsInteresting);
+			else
+				it.findNextWithPredicates(connectionIsInteresting, messageIsInteresting);
 		}
 	};
 
@@ -189,12 +159,11 @@ BagView::Iterator& BagView::Iterator::operator++()
 	{
 		auto* bag = m_d->m_nextBag;
 
-		// Do one increment so we do not check the current message again
-		++bag->it;
-
 		// We need to skip to the next valid message in this bag.
 		if(bag->handle->filtering)
-			bag->skipToNext();
+			bag->skipToNext(true);
+		else
+			++bag->it;
 	}
 
 	// Figure out the earliest available message from all the bags
