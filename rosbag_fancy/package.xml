@@ -12,6 +12,7 @@
 	<depend>rosbag_fancy_msgs</depend>
 	<depend>rosbag_storage</depend>
 	<depend>roscpp</depend>
+	<depend>roslz4</depend>
 	<depend>rosfmt</depend>
 	<depend>tf2_ros</depend>
 	<depend>topic_tools</depend>

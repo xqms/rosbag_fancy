@@ -7,6 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
 	rosbag_storage
 	roscpp
 	rosfmt
+	roslz4
 	topic_tools
 	tf2_ros
 )

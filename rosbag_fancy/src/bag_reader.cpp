@@ -5,6 +5,7 @@
 
 #include <rosfmt/rosfmt.h>
 #include <fmt/ostream.h>
+#include <roslz4/lz4s.h>
 
 #include <sys/mman.h>
 
@@ -287,14 +288,12 @@ public:
 		switch(m_compression)
 		{
 			case Private::Compression::None:
+			case Private::Compression::LZ4:
 				return;
 			case Private::Compression::BZ2:
 			{
 				std::size_t offset = m_uncompressedBuffer.size();
 				m_uncompressedBuffer.resize(offset + amount);
-
-				if(m_bzStream.avail_in == 0)
-					throw Exception{"Compressed chunk data ends prematurely!"};
 
 				m_bzStream.next_out = reinterpret_cast<char*>(m_uncompressedBuffer.data() + offset);
 				m_bzStream.avail_out = amount;
@@ -309,9 +308,6 @@ public:
 
 				return;
 			}
-			case Private::Compression::LZ4:
-				throw std::logic_error{"not implemented"};
-				break;
 		}
 
 		throw std::logic_error{"non-implemented compression mode"};
@@ -322,6 +318,7 @@ public:
 		switch(m_compression)
 		{
 			case Compression::None:
+			case Compression::LZ4:
 			{
 				auto record = ::readRecord(m_dataPtr, m_remaining);
 				m_remaining -= (record.end - m_dataPtr);
@@ -361,9 +358,6 @@ public:
 
 				return record;
 			}
-
-			case Compression::LZ4:
-				throw std::logic_error{"not implemented"};
 		}
 
 		throw std::logic_error{"non-implemented compression mode"};
@@ -422,8 +416,30 @@ BagReader::ChunkIterator::ChunkIterator(const BagReader* reader, int chunk)
 		}
 
 		case Private::Compression::LZ4:
-			throw Exception{fmt::format("LZ4 is not implemented yet, sorry!")};
+		{
+			// roslz4's streaming capabilities are not flexible enough for the code path above.
+			// So for now, we just decode the entire chunk on the fly.
+
+			m_d->m_remaining = rec.integralHeader<std::uint32_t>("size");
+			m_d->m_uncompressedBuffer.resize(m_d->m_remaining);
+
+			unsigned int length = m_d->m_remaining;
+
+			int ret = roslz4_buffToBuffDecompress(
+				reinterpret_cast<char*>(rec.dataBegin), rec.dataSize,
+				reinterpret_cast<char*>(m_d->m_uncompressedBuffer.data()), &length
+			);
+
+			if(ret != ROSLZ4_OK)
+				throw Exception{fmt::format("Could not decode LZ4 chunk: {}", ret)};
+
+			if(m_d->m_remaining != length)
+				throw Exception{fmt::format("LZ4 size mismatch: got {}, expected {} bytes", length, m_d->m_remaining)};
+
+			m_d->m_dataPtr = m_d->m_uncompressedBuffer.data();
+
 			break;
+		}
 	}
 
 	(*this)++;
