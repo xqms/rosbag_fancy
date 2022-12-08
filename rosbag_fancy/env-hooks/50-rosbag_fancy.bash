@@ -2,16 +2,12 @@
 # If you change this file, please increment the version number in
 # CMakeLists.txt to trigger a CMake update.
 
-function rosbag_fancy() {
-	rosrun rosbag_fancy rosbag_fancy $*
-}
-
 function _rosbag_fancy() {
 	local cur="${COMP_WORDS[COMP_CWORD]}"
 	local cmd="${COMP_WORDS[1]}"
 
 	if [[ "$COMP_CWORD" == "1" ]]; then
-		COMPREPLY=( $(compgen -W "record info --help" -- $cur) )
+		COMPREPLY=( $(compgen -W "record info play --help" -- $cur) )
 		return
 	fi
 
@@ -42,6 +38,13 @@ function _rosbag_fancy() {
 			;;
 		info)
 			COMPREPLY=( $(compgen -f -- $cur ) )
+			compopt -o nospace
+			;;
+		play)
+			local FLAGS=( --help --clock )
+
+			COMPREPLY=( $(compgen -o nospace -f -W "${FLAGS[*]}" -- $cur) )
+			compopt -o nospace
 			;;
 	esac
 }

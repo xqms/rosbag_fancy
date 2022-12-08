@@ -58,7 +58,7 @@ target_link_libraries(tf2_republisher
 )
 
 # Shell helper
-# Version 1.9 (increment this comment to trigger a CMake update)
+# Version 1.10 (increment this comment to trigger a CMake update)
 catkin_add_env_hooks(50-rosbag_fancy
 	SHELLS bash
 	DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/env-hooks
