@@ -7,6 +7,7 @@
 
 	<buildtool_depend>catkin</buildtool_depend>
 	<depend>boost</depend>
+	<depend>bzip2</depend>
 	<depend>libncurses-dev</depend>
 	<depend>rosbag_fancy_msgs</depend>
 	<depend>rosbag_storage</depend>

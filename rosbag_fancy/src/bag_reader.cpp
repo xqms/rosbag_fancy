@@ -262,6 +262,113 @@ public:
 		LZ4
 	};
 
+	enum class ReadResult
+	{
+		OK,
+		EndOfFile
+	};
+
+	~Private()
+	{
+		switch(m_compression)
+		{
+			case Compression::None:
+				break;
+			case Compression::BZ2:
+				BZ2_bzDecompressEnd(&m_bzStream);
+				break;
+			case Compression::LZ4:
+				break;
+		}
+	}
+
+	void readData(std::size_t amount)
+	{
+		switch(m_compression)
+		{
+			case Private::Compression::None:
+				return;
+			case Private::Compression::BZ2:
+			{
+				std::size_t offset = m_uncompressedBuffer.size();
+				m_uncompressedBuffer.resize(offset + amount);
+
+				if(m_bzStream.avail_in == 0)
+					throw Exception{"Compressed chunk data ends prematurely!"};
+
+				m_bzStream.next_out = reinterpret_cast<char*>(m_uncompressedBuffer.data() + offset);
+				m_bzStream.avail_out = amount;
+				m_bzStream.total_out_lo32 = 0;
+
+				int ret = BZ2_bzDecompress(&m_bzStream);
+				if(m_bzStream.total_out_lo32 != amount)
+					throw Exception{"Compressed chunk data ends prematurely! (not enough output)"};
+
+				if(ret != BZ_STREAM_END && ret != BZ_OK)
+					throw Exception{fmt::format("BZ2 decoding error ({})", ret)};
+
+				return;
+			}
+			case Private::Compression::LZ4:
+				throw std::logic_error{"not implemented"};
+				break;
+		}
+
+		throw std::logic_error{"non-implemented compression mode"};
+	}
+
+	Record readRecord()
+	{
+		switch(m_compression)
+		{
+			case Compression::None:
+			{
+				auto record = ::readRecord(m_dataPtr, m_remaining);
+				m_remaining -= (record.end - m_dataPtr);
+				m_dataPtr = record.end;
+
+				return record;
+			}
+
+			case Compression::BZ2:
+			{
+				Record record;
+
+				m_uncompressedBuffer.clear();
+				readData(4);
+
+				std::memcpy(&record.headerSize, m_uncompressedBuffer.data(), 4);
+				readData(record.headerSize + 4);
+
+				std::memcpy(&record.dataSize, m_uncompressedBuffer.data() + m_uncompressedBuffer.size() - 4, 4);
+				readData(record.dataSize);
+
+				record.headerBegin = m_uncompressedBuffer.data() + 4;
+				record.dataBegin = m_uncompressedBuffer.data() + 4 + record.headerSize + 4;
+
+				record.headers = readHeader(record.headerBegin, record.headerSize);
+
+				auto it = record.headers.find("op");
+				if(it == record.headers.end())
+					throw Exception{"Record without op header"};
+
+				if(it->second.size != 1)
+					throw Exception{fmt::format("op header has invalid size {}", it->second.size)};
+
+				record.op = it->second.start[0];
+
+				m_remaining -= m_uncompressedBuffer.size();
+
+				return record;
+			}
+
+			case Compression::LZ4:
+				throw std::logic_error{"not implemented"};
+		}
+
+		throw std::logic_error{"non-implemented compression mode"};
+	}
+
 	const BagReader* m_reader{};
 	std::size_t m_chunk = 0;
 
@@ -270,6 +377,8 @@ public:
 
 	uint8_t* m_dataPtr = {};
 	std::size_t m_remaining = 0;
+
+	std::vector<uint8_t> m_uncompressedBuffer;
 };
 
 BagReader::ChunkIterator::ChunkIterator(const BagReader* reader, int chunk)
@@ -291,11 +400,31 @@ BagReader::ChunkIterator::ChunkIterator(const BagReader* reader, int chunk)
 	else
 		throw Exception{fmt::format("Unknown compression type '{}'", compression)};
 
-	if(m_d->m_compression != Private::Compression::None)
-		throw Exception{"Only uncompressed chunks supported for now"};
+	switch(m_d->m_compression)
+	{
+		case Private::Compression::None:
+			m_d->m_dataPtr = rec.dataBegin;
+			m_d->m_remaining = rec.dataSize;
+			break;
 
-	m_d->m_dataPtr = rec.dataBegin;
-	m_d->m_remaining = rec.dataSize;
+		case Private::Compression::BZ2:
+		{
+			int ret = BZ2_bzDecompressInit(&m_d->m_bzStream, 0, 0);
+			if(ret != BZ_OK)
+				throw Exception{fmt::format("Could not initialize BZ2 decompression ({})", ret)};
+
+			m_d->m_bzStream.next_in = reinterpret_cast<char*>(rec.dataBegin);
+			m_d->m_bzStream.avail_in = rec.dataSize;
+
+			m_d->m_remaining = rec.integralHeader<std::uint32_t>("size");
+
+			break;
+		}
+
+		case Private::Compression::LZ4:
+			throw Exception{fmt::format("LZ4 is not implemented yet, sorry!")};
+			break;
+	}
 
 	(*this)++;
 }
@@ -314,10 +443,7 @@ BagReader::ChunkIterator& BagReader::ChunkIterator::operator++()
 			return *this;
 		}
 
-		auto rec = readRecord(m_d->m_dataPtr, m_d->m_remaining);
-
-		m_d->m_remaining -= (rec.end - m_d->m_dataPtr);
-		m_d->m_dataPtr = rec.end;
+		auto rec = m_d->readRecord();
 
 		if(rec.op == 0x02)
 		{

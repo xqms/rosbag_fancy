@@ -18,6 +18,8 @@ include_directories(${catkin_INCLUDE_DIRS})
 find_package(Curses REQUIRED)
 include_directories(${CURSES_INCLUDE_DIRS})
 
+find_package(BZip2 REQUIRED)
+
 include_directories(contrib/doctest)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -43,6 +45,7 @@ add_executable(rosbag_fancy
 target_link_libraries(rosbag_fancy
 	${catkin_LIBRARIES}
 	${CURSES_LIBRARIES}
+	BZip2::BZip2
 )
 
 # Tools
