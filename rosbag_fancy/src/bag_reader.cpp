@@ -404,7 +404,7 @@ void BagReader::Iterator::findNextWithPredicates(const std::function<bool(const 
 			}
 
 			// Find next matching chunk
-			do
+			while(!currentChunkIsInteresting())
 			{
 				m_chunk++;
 				if(m_chunk >= static_cast<int>(m_reader->m_d->chunks.size()))
@@ -413,7 +413,6 @@ void BagReader::Iterator::findNextWithPredicates(const std::function<bool(const 
 					return;
 				}
 			}
-			while(!currentChunkIsInteresting());
 
 			m_it = ChunkIterator{m_reader, m_chunk};
 		}
@@ -428,6 +427,9 @@ void BagReader::Iterator::findNextWithPredicates(const std::function<bool(const 
 
 			++m_it;
 		}
+
+		// Next chunk
+		m_chunk++;
 	}
 }
 
