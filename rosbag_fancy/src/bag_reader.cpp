@@ -367,6 +367,70 @@ BagReader::Iterator& BagReader::Iterator::operator++()
 	return *this;
 }
 
+void BagReader::Iterator::advanceWithPredicates(const std::function<bool(const ConnectionInfo&)>& connPredicate, const std::function<bool(const Message&)>& messagePredicate)
+{
+	m_it++;
+
+	if(m_it == ChunkIterator{})
+	{
+		m_chunk++;
+
+		if(m_chunk == static_cast<int>(m_reader->m_d->chunks.size()))
+		{
+			m_chunk = -1;
+			m_it = {};
+			return;
+		}
+	}
+
+	findNextWithPredicates(connPredicate, messagePredicate);
+}
+
+void BagReader::Iterator::findNextWithPredicates(const std::function<bool(const ConnectionInfo&)>& connPredicate, const std::function<bool(const Message&)>& messagePredicate)
+{
+	auto currentChunkIsInteresting = [&](){
+		auto& chunkData = m_reader->m_d->chunks[m_chunk];
+		return std::any_of(chunkData.connectionInfos.begin(), chunkData.connectionInfos.end(), connPredicate);
+	};
+
+	while(true)
+	{
+		if(m_it == ChunkIterator{})
+		{
+			if(m_chunk == -1 || m_chunk == static_cast<int>(m_reader->m_d->chunks.size()))
+			{
+				m_chunk = -1;
+				return;
+			}
+
+			// Find next matching chunk
+			do
+			{
+				m_chunk++;
+				if(m_chunk >= static_cast<int>(m_reader->m_d->chunks.size()))
+				{
+					m_chunk = -1;
+					return;
+				}
+			}
+			while(!currentChunkIsInteresting());
+
+			m_it = ChunkIterator{m_reader, m_chunk};
+		}
+
+		// We are now in a chunk which contains interesting connections.
+
+		// Iterate through the chunk
+		while(m_it != ChunkIterator{})
+		{
+			if(messagePredicate(*m_it))
+				return; // Found something! *this is pointing at the message.
+
+			++m_it;
+		}
+	}
+}
+
 std::vector<BagReader::ConnectionInfo>& BagReader::Iterator::currentChunkConnections() const
 {
 	return m_reader->m_d->chunks[m_chunk].connectionInfos;

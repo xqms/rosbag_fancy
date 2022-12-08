@@ -138,6 +138,9 @@ public:
 		Iterator& operator++();
 		Iterator operator++(int) { Iterator tmp = *this; ++(*this); return tmp; }
 
+		void advanceWithPredicates(const std::function<bool(const ConnectionInfo&)>& connPredicate, const std::function<bool(const Message&)>& messagePredicate);
+		void findNextWithPredicates(const std::function<bool(const ConnectionInfo&)>& connPredicate, const std::function<bool(const Message&)>& messagePredicate);
+
 		friend bool operator== (const Iterator& a, const Iterator& b) { return a.m_chunk == b.m_chunk && a.m_it == b.m_it; };
 		friend bool operator!= (const Iterator& a, const Iterator& b) { return a.m_chunk != b.m_chunk || a.m_it != b.m_it; };
 
