@@ -45,6 +45,7 @@ public:
 	explicit PlaybackUI(TopicManager& topics, const ros::Time& startTime, const ros::Time& endTime);
 
 	void setPositionInBag(const ros::Time& stamp);
+	void setPaused(bool paused);
 
 	void draw();
 
@@ -53,6 +54,7 @@ public:
 	boost::signals2::signal<void()> seekForwardRequested;
 	boost::signals2::signal<void()> seekBackwardRequested;
 	boost::signals2::signal<void()> pauseRequested;
+	boost::signals2::signal<void()> exitRequested;
 
 private:
 	template<class... Args>
@@ -69,6 +71,11 @@ private:
 	ros::WallTime m_lastDrawTime;
 
 	ros::Time m_positionInBag;
+
+	ros::SteadyTime m_lastSeekFwd;
+	ros::SteadyTime m_lastSeekBwd;
+
+	bool m_paused = false;
 };
 
 }
