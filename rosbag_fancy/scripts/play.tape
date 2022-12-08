@@ -2,9 +2,9 @@
 Output play.gif
 
 Set TypingSpeed 50ms
-Set FontSize 14
-Set Width 800
-Set Height 500
+Set FontSize 24
+Set Width 1300
+Set Height 680
 Set Padding 10
 Set Framerate 24
 
