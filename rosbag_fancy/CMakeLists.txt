@@ -18,21 +18,27 @@ include_directories(${catkin_INCLUDE_DIRS})
 find_package(Curses REQUIRED)
 include_directories(${CURSES_INCLUDE_DIRS})
 
+include_directories(contrib/doctest)
+
 set(CMAKE_CXX_STANDARD 17)
 
 add_executable(rosbag_fancy
 	src/bag_reader.cpp
+	src/bag_view.cpp
 	src/bag_writer.cpp
-	src/main.cpp
-	src/message_queue.cpp
-	src/terminal.cpp
-	src/topic_subscriber.cpp
-	src/topic_manager.cpp
-	src/ui.cpp
-	src/mem_str.cpp
 	src/cmd_info.cpp
 	src/cmd_play.cpp
 	src/cmd_record.cpp
+	src/cmd_test.cpp
+	src/doctest.cpp
+	src/main.cpp
+	src/mem_str.cpp
+	src/message_queue.cpp
+	src/terminal.cpp
+	src/tf2_scanner.cpp
+	src/topic_manager.cpp
+	src/topic_subscriber.cpp
+	src/ui.cpp
 )
 target_link_libraries(rosbag_fancy
 	${catkin_LIBRARIES}
@@ -56,4 +62,7 @@ catkin_add_env_hooks(50-rosbag_fancy
 
 install(TARGETS rosbag_fancy tf2_republisher
 	RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+install(TARGETS rosbag_fancy
+	RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
 )

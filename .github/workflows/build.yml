@@ -1,0 +1,26 @@
+name: Build & test
+on: [push]
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: osrf/ros:noetic-desktop-focal
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          path: 'src/rosbag_fancy'
+      - name: Install dependencies
+        run: 'apt-get update && rosdep update && rosdep install --from-path src --ignore-src -y && apt-get install -y python3-catkin-tools'
+      - name: Compile
+        run: '. /opt/ros/noetic/setup.bash && catkin build --cmake-args -DCMAKE_BUILD_TYPE=Debug'
+      - name: Inspect
+        run: 'find devel/'
+      - name: Inspect 2
+        run: '. devel/setup.bash && set'
+      - name: Test
+        run: '. devel/setup.bash && rosrun rosbag_fancy rosbag_fancy test'

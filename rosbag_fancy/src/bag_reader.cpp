@@ -53,11 +53,16 @@ namespace
 			return ret;
 		}
 
-		std::string stringHeader(const std::string& name)
+		std::string stringHeader(const std::string& name, const std::optional<std::string>& defaultValue = {})
 		{
 			auto it = headers.find(name);
 			if(it == headers.end())
-				throw Exception{fmt::format("Could not find header '{}' in record of type {}\n", name, op)};
+			{
+				if(defaultValue)
+					return *defaultValue;
+				else
+					throw Exception{fmt::format("Could not find header '{}' in record of type {}\n", name, op)};
+			}
 
 			return {reinterpret_cast<char*>(it->second.start), it->second.size};
 		}
@@ -65,12 +70,7 @@ namespace
 
 	struct Chunk
 	{
-		struct ConnectionInfo
-		{
-			std::uint32_t id;
-			std::uint32_t msgCount;
-		};
-		static_assert(sizeof(ConnectionInfo) == 8, "ConnectionInfo should have size 8");
+		static_assert(sizeof(rosbag_fancy::BagReader::ConnectionInfo) == 8, "ConnectionInfo should have size 8");
 
 		uint8_t* chunkStart;
 		std::size_t chunkCompressedSize = 0;
@@ -78,7 +78,7 @@ namespace
 		ros::Time startTime;
 		ros::Time endTime;
 
-		std::vector<ConnectionInfo> connectionInfos;
+		std::vector<rosbag_fancy::BagReader::ConnectionInfo> connectionInfos;
 	};
 
 	std::map<std::string, Span> readHeader(uint8_t* base, std::size_t remainingSize)
@@ -367,6 +367,11 @@ BagReader::Iterator& BagReader::Iterator::operator++()
 	return *this;
 }
 
+std::vector<BagReader::ConnectionInfo>& BagReader::Iterator::currentChunkConnections() const
+{
+	return m_reader->m_d->chunks[m_chunk].connectionInfos;
+}
+
 
 BagReader::BagReader(const std::string& filename)
  : m_d{std::make_unique<Private>(filename)}
@@ -421,7 +426,7 @@ BagReader::BagReader(const std::string& filename)
 		Connection con;
 		con.id = rec.integralHeader<uint32_t>("conn");
 		con.topicInBag = rec.stringHeader("topic");
-		con.topicAsPublished = recData.stringHeader("topic");
+		con.topicAsPublished = recData.stringHeader("topic", std::string{});
 		con.type = recData.stringHeader("type");
 		con.md5sum = recData.stringHeader("md5sum");
 		con.msgDef = recData.stringHeader("message_definition");
@@ -481,11 +486,11 @@ BagReader::BagReader(const std::string& filename)
 
 		auto numConnections = rec.integralHeader<std::uint32_t>("count");
 
-		if(rec.dataSize < numConnections * sizeof(Chunk::ConnectionInfo))
+		if(rec.dataSize < numConnections * sizeof(ConnectionInfo))
 			throw Exception{"Chunk info is too small"};
 
 		chunk.connectionInfos.resize(numConnections);
-		std::memcpy(chunk.connectionInfos.data(), rec.dataBegin, numConnections * sizeof(Chunk::ConnectionInfo));
+		std::memcpy(chunk.connectionInfos.data(), rec.dataBegin, numConnections * sizeof(ConnectionInfo));
 
 		for(auto& connInfo : chunk.connectionInfos)
 		{
@@ -576,6 +581,19 @@ BagReader::Iterator BagReader::findTime(const ros::Time& time) const
 	}
 
 	return it;
+}
+
+BagReader::Iterator BagReader::chunkBegin(int chunk) const
+{
+	if(chunk < 0 || chunk >= static_cast<int>(m_d->chunks.size()))
+		return {};
+
+	return Iterator{this, chunk};
+}
+
+std::size_t BagReader::numChunks() const
+{
+	return m_d->chunks.size();
 }
 
 }
