@@ -2,7 +2,7 @@
 rosbag_fancy
 ============
 
-<img src="https://xqms.github.io/rosbag_fancy/anim.gif" width="100%" />
+<img src="https://xqms.github.io/rosbag_fancy/anim.svg" width="100%" />
 
 `rosbag_fancy` is a fancy terminal UI frontend for the venerable [rosbag]
 tool.
