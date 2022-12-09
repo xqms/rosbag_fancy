@@ -11,6 +11,8 @@
 #include <ros/time.h>
 #include <ros/serialization.h>
 
+#include <rosbag/stream.h>
+
 #include <boost/make_shared.hpp>
 
 namespace rosbag_fancy
@@ -145,6 +147,8 @@ public:
 		friend bool operator!= (const Iterator& a, const Iterator& b) { return a.m_chunk != b.m_chunk || a.m_it != b.m_it; };
 
 		std::vector<ConnectionInfo>& currentChunkConnections() const;
+		rosbag::CompressionType currentChunkCompression() const;
+
 		void skipChunk();
 		int chunk() const
 		{ return m_chunk; }

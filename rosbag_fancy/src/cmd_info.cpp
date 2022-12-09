@@ -11,6 +11,7 @@
 
 #include "bag_reader.h"
 #include "mem_str.h"
+#include "rosbag/stream.h"
 
 namespace po = boost::program_options;
 using namespace rosbag_fancy;
@@ -98,6 +99,19 @@ int info(const std::vector<std::string>& options)
 	fmt::print("End time:       {:%Y-%m-%d %H:%M:%S} ({}) / {:%Y-%m-%d %H:%M:%S} (UTC)\n", endTimeB, daylight ? tzname[1] : tzname[0], endTimeBUTC);
 	fmt::print("Duration:       {:%H:%M:%S} ({:.2f}s)\n", duration, (reader.endTime() - reader.startTime()).toSec());
 	fmt::print("Size:           {}\n", mem_str::memoryToString(reader.size()));
+
+	auto it = reader.begin();
+	if(it != reader.end())
+	{
+		fmt::print("Compression:    ");
+		switch(it.currentChunkCompression())
+		{
+			case rosbag::compression::Uncompressed: fmt::print("Uncompressed\n"); break;
+			case rosbag::compression::BZ2: fmt::print("BZ2\n"); break;
+			case rosbag::compression::LZ4: fmt::print("LZ4\n"); break;
+			default: fmt::print("unknown\n");
+		}
+	}
 
 	fmt::print("Types:\n");
 	std::map<std::string, std::set<std::string>> types;

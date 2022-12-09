@@ -19,6 +19,7 @@
 #include <std_msgs/Header.h>
 #include <std_msgs/UInt8.h>
 #include "doctest.h"
+#include "rosbag/stream.h"
 
 namespace
 {
@@ -583,6 +584,21 @@ void BagReader::Iterator::findNextWithPredicates(const std::function<bool(const 
 std::vector<BagReader::ConnectionInfo>& BagReader::Iterator::currentChunkConnections() const
 {
 	return m_reader->m_d->chunks[m_chunk].connectionInfos;
+}
+
+rosbag::CompressionType BagReader::Iterator::currentChunkCompression() const
+{
+	switch(m_it.m_d->m_compression)
+	{
+		case ChunkIterator::Private::Compression::None:
+			return rosbag::compression::Uncompressed;
+		case ChunkIterator::Private::Compression::BZ2:
+			return rosbag::compression::BZ2;
+		case ChunkIterator::Private::Compression::LZ4:
+			return rosbag::compression::LZ4;
+	}
+
+	throw std::logic_error{"unknown compression"};
 }
 
 
