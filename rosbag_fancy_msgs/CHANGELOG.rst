@@ -1,0 +1,17 @@
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Changelog for package rosbag_fancy_msgs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Forthcoming
+-----------
+* split into separate packages (main, _msgs, and _gui)
+* Contributors: Max Schwarz
+
+0.2.0 (2020-06-16)
+------------------
+
+0.1.1 (2019-10-22)
+------------------
+
+0.1.0 (2019-10-18)
+------------------
