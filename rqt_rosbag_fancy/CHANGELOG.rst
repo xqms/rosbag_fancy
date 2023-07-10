@@ -2,8 +2,8 @@
 Changelog for package rqt_rosbag_fancy
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.0 (2023-07-10)
+------------------
 * GUI/TUI: display messages in bag, not total messages
 * Add rqt GUI (PR #14)
 * rqt_rosbag_fancy: rosfmt/full.h is not available on Melodic

@@ -2,8 +2,8 @@
 Changelog for package rosbag_fancy
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.0 (2023-07-10)
+------------------
 * play: decompression support (PR #18)
 * BagView & TF2 scanner (PR #17)
 * CI & unit tests
