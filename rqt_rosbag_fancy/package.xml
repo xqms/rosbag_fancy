@@ -12,6 +12,7 @@
 	<depend>rosfmt</depend>
 	<depend>rqt_gui</depend>
 	<depend>rqt_gui_cpp</depend>
+	<depend>std_srvs</depend>
 
 	<build_depend>qtbase5-dev</build_depend>
 

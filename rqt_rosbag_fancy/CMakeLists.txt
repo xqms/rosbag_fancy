@@ -7,6 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
 	rosfmt
 	rqt_gui
 	rqt_gui_cpp
+	std_srvs
 )
 
 catkin_package()

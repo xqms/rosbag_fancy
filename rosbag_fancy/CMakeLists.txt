@@ -8,6 +8,7 @@ find_package(catkin REQUIRED COMPONENTS
 	roscpp
 	rosfmt
 	roslz4
+	std_srvs
 	topic_tools
 	tf2_ros
 )
