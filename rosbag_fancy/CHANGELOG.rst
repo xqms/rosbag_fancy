@@ -2,6 +2,11 @@
 Changelog for package rosbag_fancy
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* add missing std_srvs dependency
+* Contributors: Max Schwarz
+
 1.0.0 (2023-07-10)
 ------------------
 * play: decompression support (PR #18)
