@@ -59,11 +59,18 @@ target_link_libraries(tf2_republisher
 )
 
 # Shell helper
-# Version 1.10 (increment this comment to trigger a CMake update)
+# Version 1.11 (increment this comment to trigger a CMake update)
 catkin_add_env_hooks(50-rosbag_fancy
 	SHELLS bash
 	DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/env-hooks
 )
+
+# Link executable into bin/ in the devel space
+add_custom_target(symlink ALL
+	COMMAND ${CMAKE_COMMAND} -E make_directory ${CATKIN_DEVEL_PREFIX}/${CATKIN_GLOBAL_BIN_DESTINATION}
+	COMMAND ${CMAKE_COMMAND} -E create_symlink $<TARGET_FILE:rosbag_fancy> ${CATKIN_DEVEL_PREFIX}/${CATKIN_GLOBAL_BIN_DESTINATION}/rosbag_fancy
+)
+
 
 install(TARGETS rosbag_fancy tf2_republisher
 	RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
