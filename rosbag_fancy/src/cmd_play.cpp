@@ -285,8 +285,8 @@ int play(const std::vector<std::string>& options)
 			ros::SteadyTime::sleepUntil(wallStamp);
 
 			currentTime = msg.stamp;
-                        if(ui)
-                            ui->setPositionInBag(msg.stamp);
+			if(ui)
+				ui->setPositionInBag(msg.stamp);
 
 			bags[it->bagIndex].publishers[msg.connection->id].publish(msg);
 
@@ -310,9 +310,9 @@ int play(const std::vector<std::string>& options)
 
 		ros::spinOnce();
 
-		// Handle key input
 		if(ui)
 		{
+			// Handle key input
 			fd_set fds{};
 			FD_ZERO(&fds);
 			FD_SET(STDIN_FILENO, &fds);
@@ -325,9 +325,9 @@ int play(const std::vector<std::string>& options)
 			}
 			else if(ret != 0)
 				ui->handleInput();
-                        ui->setPaused(paused);
-		}
 
+			ui->setPaused(paused);
+		}
 	}
 
 	return 0;
