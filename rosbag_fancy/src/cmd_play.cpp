@@ -11,6 +11,8 @@
 
 #include <ros/node_handle.h>
 #include <ros/publisher.h>
+#include <rosbag_fancy_msgs/PlayStatus.h>
+#include <std_srvs/Trigger.h>
 
 #include <rosgraph_msgs/Clock.h>
 
@@ -22,6 +24,7 @@
 
 namespace po = boost::program_options;
 using namespace rosbag_fancy;
+using namespace rosbag_fancy_msgs;
 
 int play(const std::vector<std::string>& options)
 {
@@ -33,6 +36,7 @@ int play(const std::vector<std::string>& options)
 		desc.add_options()
 			("help", "Display this help message")
 			("clock", "Publish clock (requires use_sim_time)")
+			("no-ui", "Disable terminal UI")
 		;
 
 		po::options_description hidden("Hidden");
@@ -85,10 +89,11 @@ int play(const std::vector<std::string>& options)
 	struct Bag
 	{
 		explicit Bag(const std::string& filename)
-		 : reader{filename}
+			: reader{filename}, filename_ ( filename )
 		{}
 
 		BagReader reader;
+		std::string filename_;
 		std::unordered_map<int, ros::Publisher> publishers;
 	};
 
@@ -195,6 +200,61 @@ int play(const std::vector<std::string>& options)
 		});
 	}
 
+	// Start/Stop service calls
+	ros::ServiceServer srv_start = nh.advertiseService("start", boost::function<bool(std_srvs::TriggerRequest&, std_srvs::TriggerResponse&)>([&](auto&, auto& resp) {
+		paused = false;
+		resp.success = !paused;
+		if(ui)
+		    ui->setPaused(paused);
+		return true;
+	}));
+	ros::ServiceServer srv_pause = nh.advertiseService("pause", boost::function<bool(std_srvs::TriggerRequest&, std_srvs::TriggerResponse&)>([&](auto&, auto& resp) {
+		paused = true;
+		resp.success = paused;
+		if(ui)
+		    ui->setPaused(paused);
+		return true;
+	}));
+	ros::ServiceServer srv_toggle = nh.advertiseService("toggle", boost::function<bool(std_srvs::TriggerRequest&, std_srvs::TriggerResponse&)>([&](auto&, auto& resp) {
+		paused = !paused;
+		if(ui)
+		    ui->setPaused(paused);
+		resp.success = true;
+		return true;
+	}));
+
+	// Status publisher
+	ros::Publisher pub_status = nh.advertise<PlayStatus>("status", 1);
+	ros::SteadyTimer timer_status = nh.createSteadyTimer(ros::WallDuration(0.1), boost::function<void(const ros::SteadyTimerEvent&)>([&](auto&) {
+		auto msg = boost::make_shared<PlayStatus>();
+		msg->header.stamp = ros::Time::now();
+
+		msg->status = paused ? PlayStatus::STATUS_PAUSED : PlayStatus::STATUS_RUNNING;
+
+		msg->currentTime = currentTime;
+		msg->startTime = startTime;
+		msg->endTime = endTime;
+		msg->current = currentTime-startTime;
+		msg->duration = endTime-startTime;
+
+		msg->bagfiles.reserve(bags.size());
+		for(const auto& bag : bags)
+			msg->bagfiles.emplace_back(bag.filename_);
+
+		msg->topics.reserve(topicManager.topics().size());
+		for(const auto& topic : topicManager.topics())
+		{
+			msg->topics.emplace_back();
+			auto& topicMsg = msg->topics.back();
+
+			topicMsg.name = topic.name;
+			topicMsg.bandwidth = topic.bandwidth;
+			topicMsg.rate = topic.messageRate;
+		}
+
+		pub_status.publish(msg);
+	}));
+
 	while(ros::ok())
 	{
 		if(paused)
@@ -213,7 +273,8 @@ int play(const std::vector<std::string>& options)
 			ros::SteadyTime::sleepUntil(wallStamp);
 
 			currentTime = msg.stamp;
-			ui->setPositionInBag(msg.stamp);
+			if(ui)
+				ui->setPositionInBag(msg.stamp);
 
 			bags[it->bagIndex].publishers[msg.connection->id].publish(msg);
 
@@ -237,9 +298,9 @@ int play(const std::vector<std::string>& options)
 
 		ros::spinOnce();
 
-		// Handle key input
 		if(ui)
 		{
+			// Handle key input
 			fd_set fds{};
 			FD_ZERO(&fds);
 			FD_SET(STDIN_FILENO, &fds);
@@ -252,9 +313,9 @@ int play(const std::vector<std::string>& options)
 			}
 			else if(ret != 0)
 				ui->handleInput();
-		}
 
-		ui->setPaused(paused);
+			ui->setPaused(paused);
+		}
 	}
 
 	return 0;

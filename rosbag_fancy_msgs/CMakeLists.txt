@@ -10,6 +10,8 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(FILES
     Status.msg
     TopicStatus.msg
+    PlayStatus.msg
+    PlayTopicStatus.msg
 )
 
 generate_messages(DEPENDENCIES
