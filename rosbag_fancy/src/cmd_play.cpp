@@ -237,32 +237,20 @@ int play(const std::vector<std::string>& options)
 		msg->current = currentTime-startTime;
 		msg->duration = endTime-startTime;
 
-		for(const auto & bag : bags)
+		msg->bagfiles.reserve(bags.size());
+		for(const auto& bag : bags)
 			msg->bagfiles.emplace_back(bag.filename_);
 
+		msg->topics.reserve(topicManager.topics().size());
+		for(const auto& topic : topicManager.topics())
+		{
+			msg->topics.emplace_back();
+			auto& topicMsg = msg->topics.back();
 
-		// TODO: fill some of this information
-
-//		auto& counts = writer.messageCounts();
-
-//		for(auto& topic : topicManager.topics())
-//		{
-//			msg->topics.emplace_back();
-//			auto& topicMsg = msg->topics.back();
-
-//			msg->bandwidth += topic.bandwidth;
-
-//			topicMsg.name = topic.name;
-//			topicMsg.publishers = topic.numPublishers;
-//			topicMsg.bandwidth = topic.bandwidth;
-//			topicMsg.bytes = topic.totalBytes;
-//			topicMsg.messages = topic.totalMessages;
-
-//			if(topic.id < counts.size())
-//				topicMsg.messages_in_current_bag = counts[topic.id];
-
-//			topicMsg.rate = topic.messageRateAt(now);
-//		}
+			topicMsg.name = topic.name;
+			topicMsg.bandwidth = topic.bandwidth;
+			topicMsg.rate = topic.messageRate;
+		}
 
 		pub_status.publish(msg);
 	}));

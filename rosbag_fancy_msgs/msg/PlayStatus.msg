@@ -13,5 +13,5 @@ time startTime
 time endTime
 string[] bagfiles
 
-TopicStatus[] topics
+PlayTopicStatus[] topics
 
