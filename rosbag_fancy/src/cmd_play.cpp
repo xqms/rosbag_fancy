@@ -11,7 +11,7 @@
 
 #include <ros/node_handle.h>
 #include <ros/publisher.h>
-#include <rosbag_fancy_msgs/StatusPlay.h>
+#include <rosbag_fancy_msgs/PlayStatus.h>
 #include <std_srvs/Trigger.h>
 
 #include <rosgraph_msgs/Clock.h>
@@ -36,7 +36,7 @@ int play(const std::vector<std::string>& options)
 		desc.add_options()
 			("help", "Display this help message")
 			("clock", "Publish clock (requires use_sim_time)")
-                        ("no-ui", "Disable terminal UI")
+			("no-ui", "Disable terminal UI")
 		;
 
 		po::options_description hidden("Hidden");
@@ -89,10 +89,11 @@ int play(const std::vector<std::string>& options)
 	struct Bag
 	{
 		explicit Bag(const std::string& filename)
-                 : reader{filename}, filename_ ( filename )
+			: reader{filename}, filename_ ( filename )
 		{}
-                std::string filename_;
+
 		BagReader reader;
+		std::string filename_;
 		std::unordered_map<int, ros::Publisher> publishers;
 	};
 
@@ -199,72 +200,72 @@ int play(const std::vector<std::string>& options)
 		});
 	}
 
-        // Start/Stop service calls
-        ros::ServiceServer srv_start = nh.advertiseService("start", boost::function<bool(std_srvs::TriggerRequest&, std_srvs::TriggerResponse&)>([&](auto&, auto& resp){
-                paused = false;
-                resp.success = !paused;
-                if ( ui )
-                    ui->setPaused(paused);
-                return true;
-        }));
-        ros::ServiceServer srv_pause = nh.advertiseService("pause", boost::function<bool(std_srvs::TriggerRequest&, std_srvs::TriggerResponse&)>([&](auto&, auto& resp){
-                paused = true;
-                resp.success = paused;
-                if ( ui )
-                    ui->setPaused(paused);
-                return true;
-        }));
-        ros::ServiceServer srv_toggle = nh.advertiseService("toggle", boost::function<bool(std_srvs::TriggerRequest&, std_srvs::TriggerResponse&)>([&](auto&, auto& resp){
-                paused = !paused;
-                if ( ui )
-                    ui->setPaused(paused);
-                resp.success = true;
-                return true;
-        }));
+	// Start/Stop service calls
+	ros::ServiceServer srv_start = nh.advertiseService("start", boost::function<bool(std_srvs::TriggerRequest&, std_srvs::TriggerResponse&)>([&](auto&, auto& resp) {
+		paused = false;
+		resp.success = !paused;
+		if(ui)
+		    ui->setPaused(paused);
+		return true;
+	}));
+	ros::ServiceServer srv_pause = nh.advertiseService("pause", boost::function<bool(std_srvs::TriggerRequest&, std_srvs::TriggerResponse&)>([&](auto&, auto& resp) {
+		paused = true;
+		resp.success = paused;
+		if(ui)
+		    ui->setPaused(paused);
+		return true;
+	}));
+	ros::ServiceServer srv_toggle = nh.advertiseService("toggle", boost::function<bool(std_srvs::TriggerRequest&, std_srvs::TriggerResponse&)>([&](auto&, auto& resp) {
+		paused = !paused;
+		if(ui)
+		    ui->setPaused(paused);
+		resp.success = true;
+		return true;
+	}));
 
-        // Status publisher
-        ros::Publisher pub_status = nh.advertise<StatusPlay>("status", 1);
-        ros::SteadyTimer timer_status = nh.createSteadyTimer(ros::WallDuration(0.1), boost::function<void(const ros::SteadyTimerEvent&)>([&](auto&){
-                ros::WallTime now = ros::WallTime::now();
+	// Status publisher
+	ros::Publisher pub_status = nh.advertise<PlayStatus>("status", 1);
+	ros::SteadyTimer timer_status = nh.createSteadyTimer(ros::WallDuration(0.1), boost::function<void(const ros::SteadyTimerEvent&)>([&](auto&) {
+		auto msg = boost::make_shared<PlayStatus>();
+		msg->header.stamp = ros::Time::now();
 
-                StatusPlayPtr msg = boost::make_shared<StatusPlay>();
-                msg->header.stamp = ros::Time::now();
+		msg->status = paused ? PlayStatus::STATUS_PAUSED : PlayStatus::STATUS_RUNNING;
 
-                msg->status = paused ? StatusPlay::STATUS_PAUSED : StatusPlay::STATUS_RUNNING;
+		msg->currentTime = currentTime;
+		msg->startTime = startTime;
+		msg->endTime = endTime;
+		msg->current = currentTime-startTime;
+		msg->duration = endTime-startTime;
 
-                msg->currentTime = currentTime;
-                msg->startTime = startTime;
-                msg->endTime = endTime;
-                msg->current = currentTime-startTime;
-                msg->duration = endTime-startTime;
+		for(const auto & bag : bags)
+			msg->bagfiles.emplace_back(bag.filename_);
 
-                // TODO: fill some of this information
-                for ( const auto & bag : bags )
-                    msg->bagfiles.emplace_back(bag.filename_);
 
-//                auto& counts = writer.messageCounts();
+		// TODO: fill some of this information
 
-//                for(auto& topic : topicManager.topics())
-//                {
-//                        msg->topics.emplace_back();
-//                        auto& topicMsg = msg->topics.back();
+//		auto& counts = writer.messageCounts();
 
-//                        msg->bandwidth += topic.bandwidth;
+//		for(auto& topic : topicManager.topics())
+//		{
+//			msg->topics.emplace_back();
+//			auto& topicMsg = msg->topics.back();
 
-//                        topicMsg.name = topic.name;
-//                        topicMsg.publishers = topic.numPublishers;
-//                        topicMsg.bandwidth = topic.bandwidth;
-//                        topicMsg.bytes = topic.totalBytes;
-//                        topicMsg.messages = topic.totalMessages;
+//			msg->bandwidth += topic.bandwidth;
 
-//                        if(topic.id < counts.size())
-//                                topicMsg.messages_in_current_bag = counts[topic.id];
+//			topicMsg.name = topic.name;
+//			topicMsg.publishers = topic.numPublishers;
+//			topicMsg.bandwidth = topic.bandwidth;
+//			topicMsg.bytes = topic.totalBytes;
+//			topicMsg.messages = topic.totalMessages;
 
-//                        topicMsg.rate = topic.messageRateAt(now);
-//                }
+//			if(topic.id < counts.size())
+//				topicMsg.messages_in_current_bag = counts[topic.id];
 
-                pub_status.publish(msg);
-        }));
+//			topicMsg.rate = topic.messageRateAt(now);
+//		}
+
+		pub_status.publish(msg);
+	}));
 
 	while(ros::ok())
 	{
