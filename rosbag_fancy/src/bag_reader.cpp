@@ -257,6 +257,8 @@ public:
 
 	ros::Time startTime;
 	ros::Time endTime;
+
+	bool isMonotonic = true;
 };
 
 class BagReader::ChunkIterator::Private
@@ -713,6 +715,9 @@ BagReader::BagReader(const std::string& filename)
 		chunk.startTime = ros::Time(startTime & 0xFFFFFFFF, startTime >> 32);
 		chunk.endTime = ros::Time(endTime & 0xFFFFFFFF, endTime >> 32);
 
+		if(lastChunk && lastChunk->endTime > chunk.startTime)
+			m_d->isMonotonic = false;
+
 		auto numConnections = rec.integralHeader<std::uint32_t>("count");
 
 		if(rec.dataSize < numConnections * sizeof(ConnectionInfo))
@@ -823,6 +828,11 @@ BagReader::Iterator BagReader::chunkBegin(int chunk) const
 std::size_t BagReader::numChunks() const
 {
 	return m_d->chunks.size();
+}
+
+bool BagReader::isMonotonic() const
+{
+	return m_d->isMonotonic;
 }
 
 

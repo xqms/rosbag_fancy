@@ -186,6 +186,8 @@ public:
 
 	int findChunk(const ros::Time& time) const;
 	Iterator chunkBegin(int chunk) const;
+
+	bool isMonotonic() const;
 private:
 	class Private;
 	std::unique_ptr<Private> m_d;

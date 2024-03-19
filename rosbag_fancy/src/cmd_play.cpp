@@ -111,6 +111,15 @@ int play(const std::vector<std::string>& options)
 	{
 		auto& bag = bags.emplace_back(filename);
 
+		if(!bag.reader.isMonotonic())
+		{
+			throw std::runtime_error{fmt::format(
+				"Bag '{}' contains non-monotonic chunks. This is not supported by rosbag_fancy play at the moment. "
+				"You can convert a non-monotonic bag to a monotonic one by running 'rosbag filter in.bag out.bag True'.",
+				filename
+			)};
+		}
+
 		if(startTime == ros::Time(0) || bag.reader.startTime() < startTime)
 			startTime = bag.reader.startTime();
 
