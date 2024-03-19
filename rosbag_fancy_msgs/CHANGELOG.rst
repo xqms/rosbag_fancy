@@ -2,6 +2,11 @@
 Changelog for package rosbag_fancy_msgs
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Add --no-ui for play with status info and start/stop/pause services (PR #19)
+* Contributors: Jan Quenzel, Max Schwarz
+
 1.0.1 (2023-07-11)
 ------------------
 

@@ -2,6 +2,17 @@
 Changelog for package rosbag_fancy
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* play: refuse to play non-monotonic bags
+* Add --no-ui for play with status info and start/stop/pause services (PR #19)
+* cmd_play: basic topic information in status message
+* rosbag_fancy: link executable for devel space
+  Fixes rosbag_fancy usage in catkin devel spaces (which is the default
+  with catkin_make and catkin_tools). I mainly test & develop with colcon,
+  so I did not notice so far that the command was not available properly.
+* Contributors: Jan Quenzel, Max Schwarz
+
 1.0.1 (2023-07-11)
 ------------------
 * add missing std_srvs dependency
