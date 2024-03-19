@@ -2,8 +2,8 @@
 Changelog for package rosbag_fancy
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.1.0 (2024-03-19)
+------------------
 * play: refuse to play non-monotonic bags
 * Add --no-ui for play with status info and start/stop/pause services (PR #19)
 * cmd_play: basic topic information in status message
